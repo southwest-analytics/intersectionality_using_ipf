@@ -1,0 +1,61 @@
+Domains
+═══════
+
+Communication	                     (31)
+───────────────────────────────────────
+Age	                                (8)
+Highest Level of Qualification	    (7)
+Main Language	                     (11)
+Proficiency in English Language	    (5)
+
+
+Employment Status	                 (32)
+───────────────────────────────────────
+Highest Level of Qualification	    (7)
+NS-SeC	                           (10)
+Occupation (current)	             (10)
+Tenure of Household	                (5)
+
+
+Physical and Practical Access	     (18)
+───────────────────────────────────────
+Age	                                (8)
+Car Availability	                  (3)
+Disability	                        (3)
+General Health	                    (4)
+
+
+Social and Community Connectedness (28)
+───────────────────────────────────────
+Car Availability	                  (3)
+Ethnicity	                          (6)
+Household Composition	              (8)
+Length of Residence in UK	          (6)
+Religion	                          (5)
+
+
+Structural Inclusion	             (23)
+───────────────────────────────────────
+Age	                                (8)
+Disability	                        (3)
+Ethnicity	                          (6)
+General Health	                    (4)
+Sex	                                (2)
+
+
+Timing and Caring Commitments	     (29)
+───────────────────────────────────────
+Economic Activity Status	         (10)
+Household Composition	              (8)
+Household Type	                    (6)
+Unpaid Care	                        (5)
+
+
+
+OA21 
+E00165923 Forches Ave
+E00180270 Landkey
+E00101824 Fremington
+E00101827 Croyde
+
+

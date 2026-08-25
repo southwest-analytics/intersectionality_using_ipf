@@ -1,0 +1,204 @@
+/*
+╔═══════════════════════════════════╗
+║ Health Innovation South West CSS  ║
+║ For R Markdown / Quarto Documents ║
+╚═══════════════════════════════════╝
+*/
+  
+/* ---------- 1. Root Variables (Colours) ---------- */
+  
+  :root {
+    --hisw-primary: #211752;     /* dark purple */
+      --hisw-secondary: #30c4ed;   /* cyan */
+      --hisw-teal: #00abbd;        /* teal */
+      --hisw-pink: #ed3854;        /* red/pink */
+      --hisw-yellow: #fad657;      /* yellow */
+      --hisw-orange: #ffab29;      /* orange */
+      --hisw-lightblue: #94e8ff;   /* light blue */
+      --hisw-grey: #949494;
+      --hisw-lightgrey: #f6f6f5;
+      
+      --hisw-text: #211752;
+      --hisw-background: #ffffff;
+  }
+
+/* ---------- 2. Base Typography ---------- */
+  
+  /* Fallback font setup (Eina04 is not web-safe) */
+  body {
+    font-family: "Eina04", "Arial", sans-serif;
+    color: var(--hisw-text);
+    background-color: var(--hisw-background);
+    line-height: 1.6;
+    font-size: 16px;
+  }
+
+/* Headings reflect brand hierarchy */
+  h1, h2, h3, h4 {
+    font-family: "Eina04", "Arial", sans-serif;
+    font-weight: 700;
+    color: var(--hisw-primary);
+    margin-top: 1.5em;
+  }
+
+h1 {
+  font-size: 2.2em;
+  border-bottom: 3px solid var(--hisw-secondary);
+  padding-bottom: 0.3em;
+}
+
+h2 {
+  font-size: 1.8em;
+  color: var(--hisw-teal);
+}
+
+h3 {
+  font-size: 1.4em;
+  color: var(--hisw-primary);
+}
+
+/* Body text */
+  p {
+    font-size: 1em;
+    margin-bottom: 1em;
+  }
+
+/* ---------- 3. Links ---------- */
+  
+  a {
+    color: var(--hisw-secondary);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* ---------- 4. Blockquotes (DM Serif style) ---------- */
+  
+  blockquote {
+    font-family: "DM Serif Text", serif;
+    font-size: 1.2em;
+    border-left: 4px solid var(--hisw-pink);
+    padding-left: 1em;
+    color: var(--hisw-primary);
+    margin: 1.5em 0;
+  }
+
+/* ---------- 5. Code Blocks ---------- */
+  
+  pre, code {
+    font-family: "Courier New", monospace;
+    background-color: var(--hisw-lightgrey);
+  }
+
+pre {
+  border-left: 4px solid var(--hisw-teal);
+  padding: 1em;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+code {
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+/* ---------- 6. Tables ---------- */
+  
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-bottom: 1.5em;
+  }
+
+th {
+  background-color: var(--hisw-primary);
+  color: white;
+  padding: 10px;
+  text-align: left;
+}
+
+td {
+  padding: 10px;
+  border-bottom: 1px solid var(--hisw-lightgrey);
+}
+
+tr:nth-child(even) {
+  background-color: var(--hisw-lightgrey);
+}
+
+/* ---------- 7. Callout Boxes ---------- */
+  
+  .callout {
+    border-left: 5px solid var(--hisw-secondary);
+    padding: 1em;
+    background-color: var(--hisw-lightgrey);
+    margin: 1.5em 0;
+  }
+
+.callout-warning {
+  border-left-color: var(--hisw-orange);
+}
+
+.callout-important {
+  border-left-color: var(--hisw-pink);
+}
+
+/* ---------- 8. Figures / Images ---------- */
+  
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 5px;
+  }
+
+.figure-caption {
+  font-size: 0.9em;
+  color: var(--hisw-grey);
+}
+
+/* ---------- 9. Branding Banner (Optional) ---------- */
+  
+  .header-banner {
+    background-color: var(--hisw-primary);
+    color: white;
+    padding: 20px;
+    margin-bottom: 2em;
+  }
+
+.header-banner h1 {
+  color: white;
+  border-bottom: none;
+}
+
+/* ---------- 10. Section Divider ---------- */
+  
+  hr {
+    border: none;
+    border-top: 2px solid var(--hisw-secondary);
+    margin: 2em 0;
+  }
+
+
+/* ---------- 11. Header Banner with Logo ---------- */
+
+body::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 120px;
+  background-color: #211752;
+  background-image: url("HISW_Logo_RGB_Negative.png"); /* path to your logo */
+  background-repeat: no-repeat;
+  background-position: left 20px center;
+  background-size: 200px;
+}
+
+
+/* Push content down so it doesn't overlap */
+/*body {
+  padding-top: 10px;
+}*/
+
