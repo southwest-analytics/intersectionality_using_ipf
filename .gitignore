@@ -34,4 +34,7 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 intersectionality_using_ipf.Rproj
+<<<<<<< HEAD
 intersectionality_using_ipf.html
+=======
+>>>>>>> 2da3d9fbd26f11c30322a8fd54f58c56dcc63303
