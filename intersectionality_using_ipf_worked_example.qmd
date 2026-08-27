@@ -2,8 +2,14 @@
 title: "Interactive Proportional Fitting"
 subtitle: "Worked Example"
 author: "Richard Blackwell"
-format: html
-editor: visual
+format: 
+  html:
+    css: hisw.css
+    grid:
+      sidebar-width: 200px
+      body-width: 1600px
+      margin-width: 50px
+      gutter-width: 1.5rem
 ---
 
 ```{r}
@@ -17,55 +23,844 @@ library(readxl)
 library(flextable)
 library(officer)
 ```
+## Data
 
+The data we will use for the worked example comes from the UK Census 2021. 
 
-## Marginals
+We will use 3 marginals; **age**, **gender**, and **general health** for 4 selected census output areas (OA) 2021 in North Devon Local Authority District. They are
+
++ [E00101824] - Fremington
++ [E00101827] - Croyde
++ [E00165923] - Forches Avenue, Barnstaple
++ [E00180270] - Lankey
+
+We will use 3 pairwise constraints; **age and gender**, **age and health**, and **gender and health** for the North Devon Local Authority District.
+
+### Marginals
 
 #### Age
 
+The age marginal is given as 3 categories, young (0-14yrs), adult (16-64yrs), elderly (65+yrs) and the table below shows the age marginal for the 4 census output areas.
+
 ```{r}
 #| label: tbl-age
+#| tbl-cap: "Age"
 #| echo: false
 #| warning: false
 
-readxl::excel_sheets(path = "worked_example/data/marginals.xlsx")
-
 df_age <- readxl::read_xlsx(path = "worked_example/data/marginals.xlsx",
                             sheet = "AGE") %>% 
-  select(OA21CD, YOUNG, ADULT, ELDERLY, TOTAL) %>%
-  
+  mutate(AREA = sprintf("[%s] - %s", OA21CD, OA21NM), 
+         PCT_YOUNG = YOUNG/TOTAL, PCT_ADULT = ADULT/TOTAL, PCT_ELDERLY  = ELDERLY/TOTAL) %>%
+  select(AREA, 
+         YOUNG, ADULT, ELDERLY, TOTAL,
+         PCT_YOUNG, PCT_ADULT, PCT_ELDERLY)
 
-
-
-df_gender <- readxl::read_xlsx(path = "worked_example/data/marginals.xlsx",
-                               sheet = "GENDER")
-
-df_health <- readxl::read_xlsx(path = "worked_example/data/marginals.xlsx",
-                               sheet = "HEALTH")
-
-```
+tbl_age <- flextable(df_age) %>%
+  autofit() %>%
+  add_header_row(values = c("Area", "n", "Proportion"), colwidths = c(1,4,3)) %>%
+  align(i = 1, j = 2:8, align = "center", part = "header") %>%
+  merge_at(j = 1, part = "header") %>%
+  set_header_labels(AREA = "Area",
+                    YOUNG = "Young",
+                    ADULT = "Adult",
+                    ELDERLY = "Elderly",
+                    TOTAL = "Total",
+                    PCT_YOUNG = "Young",
+                    PCT_ADULT = "Adult",
+                    PCT_ELDERLY = "Elderly") %>%
+  set_formatter(PCT_YOUNG = function(x){sprintf("%.4f", x)},
+                PCT_ADULT = function(x){sprintf("%.4f", x)},
+                PCT_ELDERLY = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(1, 4, 5), part = "all")
+tbl_age
+```  
 
 #### Gender
 
+The gender marginal is given as 2 categories, female, and male and the table below shows the gender marginal for the 4 census output areas.
+
+```{r}
+#| label: tbl-gender
+#| tbl-cap: "Gender"
+#| echo: false
+#| warning: false
+
+df_gender <- readxl::read_xlsx(path = "worked_example/data/marginals.xlsx",
+                               sheet = "GENDER") %>% 
+  mutate(AREA = sprintf("[%s] - %s", OA21CD, OA21NM), 
+         PCT_FEMALE = FEMALE/TOTAL, PCT_MALE = MALE/TOTAL) %>%
+  select(AREA, 
+         FEMALE, MALE, TOTAL,
+         PCT_FEMALE, PCT_MALE)
+
+tbl_gender <- flextable(df_gender) %>%
+  autofit() %>%
+  add_header_row(values = c("Area", "n", "Proportion"), colwidths = c(1,3,2)) %>%
+  align(i = 1, j = 2:6, align = "center", part = "header") %>%
+  merge_at(j = 1, part = "header") %>%
+  set_header_labels(AREA = "Area",
+                    FEMALE = "Female",
+                    MALE = "Male",
+                    TOTAL = "Total",
+                    PCT_FEMALE = "Female",
+                    PCT_MALE = "Male") %>%
+  set_formatter(PCT_FEMALE = function(x){sprintf("%.4f", x)},
+                PCT_MALE = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(1, 3, 4), part = "all")
+tbl_gender
+```
+
 #### Health
 
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+The health marginal is given as 3 categories, good (very good and good health), fair (fair health), poor (bad and very bad health) and the table below shows the health marginal for the 4 census output areas.
 
 ```{r}
-1 + 1
-```
-
-You can add options to executable code like this
-
-```{r}
+#| label: tbl-health
+#| tbl-cap: "General Health"
 #| echo: false
-2 * 2
+#| warning: false
+
+df_health <- readxl::read_xlsx(path = "worked_example/data/marginals.xlsx",
+                               sheet = "HEALTH") %>% 
+  mutate(AREA = sprintf("[%s] - %s", OA21CD, OA21NM), 
+         PCT_GOOD = GOOD/TOTAL, PCT_FAIR = FAIR/TOTAL, PCT_POOR = POOR/TOTAL) %>%
+  select(AREA, 
+         GOOD, FAIR, POOR, TOTAL,
+         PCT_GOOD, PCT_FAIR, PCT_POOR)
+
+tbl_health <- flextable(df_health) %>%
+  autofit() %>%
+  add_header_row(values = c("Area", "n", "Proportion"), colwidths = c(1,4,3)) %>%
+  align(i = 1, j = 2:8, align = "center", part = "header") %>%
+  merge_at(j = 1, part = "header") %>%
+  set_header_labels(AREA = "Area",
+                    GOOD = "Good",
+                    FAIR = "Fair",
+                    POOR = "Poor",
+                    TOTAL = "Total",
+                    PCT_GOOD = "Good",
+                    PCT_FAIR = "Fair",
+                    PCT_POOR = "Poor") %>%
+  set_formatter(PCT_GOOD = function(x){sprintf("%.4f", x)},
+                PCT_FAIR = function(x){sprintf("%.4f", x)},
+                PCT_POOR = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(1, 4, 5), part = "all")
+tbl_health
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
-warning: 
+### Constraints
+
+#### Age and Gender
+
+The age (3 categories) and gender (2 categories) constraint based on the North Devon Local Authority District is give below.
+
+```{r}
+#| label: tbl-age-gender
+#| tbl-cap: "Age and Gender"
+#| echo: false
+#| warning: false
+
+df_age_gender <- readxl::read_xlsx(path = "worked_example/data/constraints.xlsx",
+                                   sheet = "AGE_GENDER") %>%
+  mutate(AREA = sprintf("[%s] - %s", LAD24CD, LAD24NM),
+         PCT = POPN/sum(POPN)) %>%
+  select(AREA, AGE, GENDER, POPN, PCT)
+
+tbl_display <- df_age_gender %>%
+  mutate(AGE = str_to_title(AGE),
+         GENDER = str_to_title(GENDER)) %>%
+  pivot_wider(names_from = "GENDER", values_from = c("POPN", "PCT")) %>%
+  rename_with(.fn = ~c("AREA", "AGE", "FEMALE", "MALE", "PCT_FEMALE", "PCT_MALE")) %>%
+  mutate(TOTAL = FEMALE + MALE, .after = "MALE") %>%
+  mutate(PCT_TOTAL = TOTAL/sum(TOTAL), .after = "PCT_MALE") %>%
+  bind_rows(
+    df_age_gender %>% 
+      pivot_wider(names_from = "GENDER", values_from = c("POPN", "PCT")) %>%
+      mutate(TOTAL = POPN_FEMALE + POPN_MALE, .after = "POPN_MALE") %>%
+      mutate(PCT_TOTAL = TOTAL/sum(TOTAL), .after = "PCT_MALE") %>%
+      group_by(AREA) %>%
+      summarise(across(.cols = 2:7, .fns = sum)) %>%
+      ungroup() %>%
+      mutate(AGE = "Total", .after = "AREA") %>%
+      rename_with(.fn = ~c("AREA", "AGE", "FEMALE", "MALE", "TOTAL", "PCT_FEMALE", "PCT_MALE", "PCT_TOTAL")))
+                              
+tbl_age_gender <- flextable(tbl_display) %>%
+  autofit() %>%
+  add_header_row(values = c("Area", "Age", "n", "Proportion"), colwidths = c(1, 1, 3, 3)) %>%
+  align(i = 1, j = 3:8, align = "center", part = "header") %>%
+  set_header_labels(AREA = "Area",
+                    AGE = "Age",
+                    FEMALE = "Female",
+                    MALE = "Male",
+                    TOTAL = "Total",
+                    PCT_FEMALE = "Female",
+                    PCT_MALE = "Male",
+                    PCT_TOTAL = "Total") %>%
+  merge_v(j = 1:2, part = "header") %>%
+  merge_at(j = 1, part = "body") %>%
+  set_formatter(PCT_FEMALE = function(x){sprintf("%.4f", x)},
+                PCT_MALE = function(x){sprintf("%.4f", x)},
+                PCT_TOTAL = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(1, 2, 4:5, 7), part = "all") %>%
+  hline(i = 3, part = "body")
+tbl_age_gender
+```
+
+#### Age and Health
+
+The age (3 categories) and health (3 categories) constraint based on the North Devon Local Authority District is give below.
+
+```{r}
+#| label: tbl-age-health
+#| tbl-cap: "Age and Health"
+#| echo: false
+#| warning: false
+
+df_age_health <- readxl::read_xlsx(path = "worked_example/data/constraints.xlsx",
+                                   sheet = "AGE_HEALTH") %>%
+  mutate(AREA = sprintf("[%s] - %s", LAD24CD, LAD24NM),
+         PCT = POPN/sum(POPN)) %>%
+  select(AREA, AGE, HEALTH, POPN, PCT)
+
+tbl_display <- df_age_health %>%
+  mutate(AGE = str_to_title(AGE),
+         HEALTH = str_to_title(HEALTH)) %>%
+  pivot_wider(names_from = "HEALTH", values_from = c("POPN", "PCT")) %>%
+  rename_with(.fn = ~c("AREA", "AGE", "GOOD", "FAIR", "POOR", "PCT_GOOD", "PCT_FAIR", "PCT_POOR")) %>%
+  mutate(TOTAL = GOOD + FAIR + POOR, .after = "POOR") %>%
+  mutate(PCT_TOTAL = TOTAL/sum(TOTAL), .after = "PCT_POOR") %>%
+  bind_rows(
+    df_age_health %>% 
+      pivot_wider(names_from = "HEALTH", values_from = c("POPN", "PCT")) %>%
+      mutate(TOTAL = POPN_GOOD + POPN_FAIR + POPN_POOR, .after = "POPN_POOR") %>%
+      mutate(PCT_TOTAL = TOTAL/sum(TOTAL), .after = "PCT_POOR") %>%
+      group_by(AREA) %>%
+      summarise(across(.cols = 2:9, .fns = sum)) %>%
+      ungroup() %>%
+      mutate(AGE = "Total", .after = "AREA") %>%
+      rename_with(.fn = ~c("AREA", "AGE", "GOOD", "FAIR", "POOR", "TOTAL", "PCT_GOOD", "PCT_FAIR", "PCT_POOR", "PCT_TOTAL")))
+                              
+tbl_age_health <- flextable(tbl_display) %>%
+  autofit() %>%
+  add_header_row(values = c("Area", "Age", "n", "Proportion"), colwidths = c(1, 1, 4, 4)) %>%
+  align(i = 1, j = 3:10, align = "center", part = "header") %>%
+  set_header_labels(AREA = "Area",
+                    AGE = "Age",
+                    GOOD = "Good",
+                    FAIR = "Fair",
+                    POOR = "Poor",
+                    TOTAL = "Total",
+                    PCT_GOOD = "Good",
+                    PCT_FAIR = "Fair",
+                    PCT_POOR = "Poor",
+                    PCT_TOTAL = "Total") %>%
+  merge_v(j = 1:2, part = "header") %>%
+  merge_at(j = 1, part = "body") %>%
+  set_formatter(PCT_GOOD = function(x){sprintf("%.4f", x)},
+                PCT_FAIR = function(x){sprintf("%.4f", x)},
+                PCT_POOR = function(x){sprintf("%.4f", x)},
+                PCT_TOTAL = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(1, 2, 5:6, 9), part = "all") %>%
+  hline(i = 3, part = "body")
+tbl_age_health
+```
+
+
+#### Gender and Health
+
+The gender (2 categories) and health (3 categories) constraint based on the North Devon Local Authority District is give below.
+
+```{r}
+#| label: tbl-gender-health
+#| tbl-cap: "Gender and Health"
+#| echo: false
+#| warning: false
+
+df_gender_health <- readxl::read_xlsx(path = "worked_example/data/constraints.xlsx",
+                                   sheet = "GENDER_HEALTH") %>%
+  mutate(AREA = sprintf("[%s] - %s", LAD24CD, LAD24NM),
+         PCT = POPN/sum(POPN)) %>%
+  select(AREA, GENDER, HEALTH, POPN, PCT)
+
+tbl_display <- df_gender_health %>%
+  mutate(GENDER = str_to_title(GENDER),
+         HEALTH = str_to_title(HEALTH)) %>%
+  pivot_wider(names_from = "HEALTH", values_from = c("POPN", "PCT")) %>%
+  rename_with(.fn = ~c("AREA", "GENDER", "GOOD", "FAIR", "POOR", "PCT_GOOD", "PCT_FAIR", "PCT_POOR")) %>%
+  mutate(TOTAL = GOOD + FAIR + POOR, .after = "POOR") %>%
+  mutate(PCT_TOTAL = TOTAL/sum(TOTAL), .after = "PCT_POOR") %>%
+  bind_rows(
+    df_gender_health %>% 
+      pivot_wider(names_from = "HEALTH", values_from = c("POPN", "PCT")) %>%
+      mutate(TOTAL = POPN_GOOD + POPN_FAIR + POPN_POOR, .after = "POPN_POOR") %>%
+      mutate(PCT_TOTAL = TOTAL/sum(TOTAL), .after = "PCT_POOR") %>%
+      group_by(AREA) %>%
+      summarise(across(.cols = 2:9, .fns = sum)) %>%
+      ungroup() %>%
+      mutate(GENDER = "Total", .after = "AREA") %>%
+      rename_with(.fn = ~c("AREA", "GENDER", "GOOD", "FAIR", "POOR", "TOTAL", "PCT_GOOD", "PCT_FAIR", "PCT_POOR", "PCT_TOTAL")))
+                              
+tbl_gender_health <- flextable(tbl_display) %>%
+  autofit() %>%
+  add_header_row(values = c("Area", "Gender", "n", "Proportion"), colwidths = c(1, 1, 4, 4)) %>%
+  align(i = 1, j = 3:10, align = "center", part = "header") %>%
+  set_header_labels(AREA = "Area",
+                    GENDER = "Gender",
+                    GOOD = "Good",
+                    FAIR = "Fair",
+                    POOR = "Poor",
+                    TOTAL = "Total",
+                    PCT_GOOD = "Good",
+                    PCT_FAIR = "Fair",
+                    PCT_POOR = "Poor",
+                    PCT_TOTAL = "Total") %>%
+  merge_v(j = 1:2, part = "header") %>%
+  merge_at(j = 1, part = "body") %>%
+  set_formatter(PCT_GOOD = function(x){sprintf("%.4f", x)},
+                PCT_FAIR = function(x){sprintf("%.4f", x)},
+                PCT_POOR = function(x){sprintf("%.4f", x)},
+                PCT_TOTAL = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(1, 2, 5:6, 9), part = "all") %>%
+  hline(i = 2, part = "body")
+tbl_gender_health
+```
+
+## Iterative Proportional Fitting (IPF)
+
+At a high level the process for **Iterative Proportional Fitting** is as follows
+
+```{mermaid}
+flowchart TD
+    A(Seed Creation) --> B(IPF Balancing)
+    B --> C{Convergence}
+    C --> |Yes| D(End)
+    C --> |No| B
+```
+
+## Higher Level Geography IPF
+
+### Seed Creation
+
+We will start by creating the overall seed table for the North Devon Local Authority District; age (3 categories), gender (2 categories), and health (3 categories). 
+
+This seed table is a 3x2x3 table or in long format 18 rows as seen in @tbl-high-level-geography-seed-construction
+
+The initial seed will be the mutual independent probability from the high level geography constraints. The assumption here is that each marginal calculated from the constraint table is the same **NB: this assumption should be checked as the census uses perturbation for privacy**
+
+For example in @tbl-age-gender we can see that the gender split is Female 0.5137, Male 0.4863 and in @tbl-gender-health we can see that is also Female 0.5137, Male 0.4863
+
+So from these marginals of the constraints we can create the following seed table
+
+```{r}
+#| label: tbl-high-level-geography-seed-construction
+#| tbl-cap: "High Level Geography Seed Construction"
+#| echo: false
+#| warning: false
+
+df_tmp <- df_age_gender %>% 
+  group_by(AGE) %>% 
+  summarise(POPN = sum(POPN)) %>% 
+  ungroup() %>% 
+  mutate(PCT = POPN/sum(POPN))
+
+p_age <- setNames(object = df_tmp$PCT, nm = df_tmp$AGE)
+
+df_tmp <- df_age_health %>% 
+  group_by(HEALTH) %>% 
+  summarise(POPN = sum(POPN)) %>% 
+  ungroup() %>% 
+  mutate(PCT = POPN/sum(POPN))
+
+p_health <- setNames(object = df_tmp$PCT, nm = df_tmp$HEALTH)
+
+df_tmp <- df_gender_health %>% 
+  group_by(GENDER) %>% 
+  summarise(POPN = sum(POPN)) %>% 
+  ungroup() %>% 
+  mutate(PCT = POPN/sum(POPN))
+
+p_gender <- setNames(object = df_tmp$PCT, nm = df_tmp$GENDER)
+
+df_seed <- data.frame(AREA = "[E07000043] - North Devon",
+                      AGE = c(rep("YOUNG", 6), rep("ADULT", 6), rep("ELDERLY", 6)),
+                      GENDER = rep(c(rep("FEMALE", 3), rep("MALE", 3)), 3),
+                      HEALTH = rep(c("GOOD", "FAIR", "POOR"), 6)) %>%
+  mutate(P_AGE = p_age[AGE], 
+         P_GENDER = p_gender[GENDER], 
+         P_HEALTH = p_health[HEALTH],
+         P_OVERALL = P_AGE * P_GENDER * P_HEALTH)
+
+age_categories <- setNames(c("Young", "Adult", "Elderly"), nm = c("YOUNG", "ADULT", "ELDERLY"))
+gender_categories <- setNames(c("Female", "Male"), nm = c("FEMALE", "MALE"))
+health_categories <- setNames(c("Good", "Fair", "Poor"), nm = c("GOOD", "FAIR", "POOR"))
+
+tbl_seed <- flextable(df_seed %>% 
+                        mutate(AGE = age_categories[AGE],
+                               GENDER = gender_categories[GENDER],
+                               HEALTH = health_categories[HEALTH])) %>%
+  autofit() %>%
+  add_header_row(values = c("Area", "Category", "Probability"), colwidths = c(1, 3, 4)) %>%
+  align(i = 1, j = c(2:4, 5:8), align = "center", part = "header") %>%
+  set_header_labels(AREA = "Area",
+                    AGE = "Age",
+                    GENDER = "Gender",
+                    HEALTH = "Health",
+                    P_AGE = "P(Age)",
+                    P_GENDER = "P(Gender)",
+                    P_HEALTH = "P(Health)",
+                    P_OVERALL = "P(Age,Gender,Health)") %>%
+  set_formatter(P_AGE = function(x){sprintf("%.4f", x)},
+                P_GENDER = function(x){sprintf("%.4f", x)},
+                P_HEALTH = function(x){sprintf("%.4f", x)},
+                P_OVERALL = function(x){sprintf("%.4f", x)}) %>%
+  merge_v(j = 1:4) %>%
+  vline(j = c(1, 4, 7), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:17, border = fp_border(color = "grey80"))
+tbl_seed
+```
+
+### IPF Balancing
+
+In this step we will adjust the seed table to balance to, in the case of the high level geography, the pairwise constraints
+
+In order to do this we will step through each of the 3 constraints and balance them in turn.
+
+#### Age and Gender Constraint
+
+We begin by calculating the **age and gender** table based on the seed table by summing each of the age and gender combinations. For example the **young, female** proportion is the sum of the **young, female, good health**, the **young, female, fair health**, and the **young, female, poor health** proportions.
+
+----
+
+$$
+  \begin{aligned}
+    P(age, gender) &= \sum_{health}P(age, gender, health) \\
+    P(young, female) &= P(young, female, good) + P(young, female, fair) + P(young, female, poor) \\
+    P(young, female) &= 0.0700 + 0.0119 + 0.0047 \\
+    P(young, female) &= 0.0866 \\
+  \end{aligned}
+$$
+
+----
+
+```{r}
+#| label: tbl-high-level-geography-age-gender-balance-step1
+#| tbl-cap: "High Level Geography Age Gender Balance (Step 1)"
+#| echo: false
+#| warning: false
+
+df_age_gender_balance <- df_age_gender %>% 
+  mutate(AGE, GENDER, P_ORIGINAL = PCT, .keep = "none") %>%
+  left_join(df_seed %>% 
+              group_by(AGE, GENDER) %>% 
+              summarise(P_0 = sum(P_OVERALL), .groups = "keep") %>% 
+              ungroup(),
+            by = c("AGE", "GENDER")) %>%
+  mutate(ADJ_0 = P_ORIGINAL / P_0)
+
+tbl_age_gender_balance <- flextable(df_age_gender_balance %>%
+                                      mutate(AGE = age_categories[AGE],
+                                             GENDER = gender_categories[GENDER])) %>% 
+  autofit() %>%
+  add_header_row(values = c("Age", "Gender", "P(Age, Gender)", "Adjustment Factor\n(Orig/Calc)"),
+                 colwidths = c(1,1,2,1)) %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    P_ORIGINAL = "Constraint",
+                    P_0 = "Seed",
+                    ADJ_0 = "Adjustment Factor\n(Orig/Calc)") %>%
+  merge_v(part = "header") %>%
+  set_formatter(P_ORIGINAL = function(x){sprintf("%.4f", x)},
+                P_0 = function(x){sprintf("%.4f", x)},
+                ADJ_0 = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(2, 4))
+tbl_age_gender_balance
+```
+
+We then adjust all the proportions in the seed table by the relevant adjustment factor, for example the **young, female, good health**, **young, female, fair health**, and **young, female, poor health** will be multiplied by the adjustment factor **0.9594** which results in the following table.
+
+```{r}
+#| label: tbl-high-level-geography-age-gender-iter1
+#| tbl-cap: "High Level Geography Age Gender Constraint Balancing Iteration 1"
+#| echo: false
+#| warning: false
+
+df_seed_iter1 <- df_seed %>% 
+  mutate(AGE, GENDER, HEALTH, P_SEED = P_OVERALL, .keep = "none") %>%
+  left_join(df_age_gender_balance %>% mutate(AGE, GENDER, ADJ_0_AG = ADJ_0, .keep = "none"), by = c("AGE", "GENDER")) %>%
+  mutate(P_0_AG = P_SEED * ADJ_0_AG)
+
+tbl_iter1 <- flextable(df_seed_iter1 %>% 
+                        mutate(AGE = age_categories[AGE],
+                               GENDER = gender_categories[GENDER],
+                               HEALTH = health_categories[HEALTH])) %>%
+  autofit() %>%
+  add_header_row(values = c("Age", "Gender", "Health", "Seed", "Iteration 1 (Age, Gender)"), colwidths = c(1, 1, 1, 1, 2)) %>%
+  align(i = 1, j = c(5:6), align = "center", part = "header") %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    HEALTH = "Health",
+                    P_SEED = "Seed",
+                    ADJ_0_AG = "Adjustment Factor",
+                    P_0_AG = "P Adjusted") %>%
+  set_formatter(P_SEED = function(x){sprintf("%.4f", x)},
+                ADJ_0_AG = function(x){sprintf("%.4f", x)},
+                P_0_AG = function(x){sprintf("%.4f", x)}) %>%
+  merge_v(j = 1:4, part = "header") %>%
+  merge_v(j = 1:3) %>%
+  vline(j = c(3, 4), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:17, border = fp_border(color = "grey80"))
+tbl_iter1
+```
+
+After the balancing we can see that age and gender combinations are now balanced to the high level geography age and gender constraint. 
+
+For example the **young, female** proportion is the sum of the **young, female, good health** plus the **young, female, fair health** plus the **young, female, poor health** proportions.
+
+----
+
+$$
+  \begin{aligned}
+    P(age, gender) &= \sum_{health}P(age, gender, health) \\
+    P(young, female) &= P(young, female, good) + P(young, female, fair) + P(young, female, poor) \\
+    P(young, female) &= 0.0672 + 0.0114 + 0.0045 \\
+    P(young, female) &= 0.0831 \\
+  \end{aligned}
+$$
+
+----
+
+Which we can see from @tbl-age-gender is the same as the original constraint value.
+
+#### Age and Health Constraint
+
+We now move on to balancing by the next constraint which is age and health. In the same process as before we calculate the current proportions by summing each of the **age and health** combinations that we have just created by balancing for **age and gender**. For example the **young, good** proportion is the sum of the **young, female, good health** plus the **young, male, good health** proportions.
+
+----
+
+$$
+  \begin{aligned}
+    P(age, health) &= \sum_{gender}P(age, gender, health) \\
+    P(young, good) &= P(young, female, good) + P(young, male, good) \\
+    P(young, good) &= 0.0672 + 0.0692 \\
+    P(young, good) &= 0.1364 \\
+  \end{aligned}
+$$
+
+----
+
+```{r}
+#| label: tbl-high-level-geography-age-health-balance-step1
+#| tbl-cap: "High Level Geography Age Health Balance (Step 1)"
+#| echo: false
+#| warning: false
+
+df_age_health_balance <- df_age_health %>% 
+  mutate(AGE, HEALTH, P_ORIGINAL = PCT, .keep = "none") %>%
+  left_join(df_seed_iter1 %>% 
+              group_by(AGE, HEALTH) %>% 
+              summarise(P_0 = sum(P_0_AG), .groups = "keep") %>% 
+              ungroup(),
+            by = c("AGE", "HEALTH")) %>%
+  mutate(ADJ_0 = P_ORIGINAL / P_0)
+
+tbl_age_health_balance <- flextable(df_age_health_balance %>%
+                                      mutate(AGE = age_categories[AGE],
+                                             HEALTH = health_categories[HEALTH])) %>% 
+  autofit() %>%
+  add_header_row(values = c("Age", "Health", "P(Age, Health)", "Adjustment Factor\n(Orig/Calc)"),
+                 colwidths = c(1,1,2,1)) %>%
+  set_header_labels(AGE = "Age",
+                    HEALTH = "Health",
+                    P_ORIGINAL = "Constraint",
+                    P_0 = "Seed",
+                    ADJ_0 = "Adjustment Factor\n(Orig/Calc)") %>%
+  merge_v(part = "header") %>%
+  set_formatter(P_ORIGINAL = function(x){sprintf("%.4f", x)},
+                P_0 = function(x){sprintf("%.4f", x)},
+                ADJ_0 = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(2, 4))
+tbl_age_health_balance
+```
+
+As before We adjust all the proportions in the seed table by the relevant adjustment factor, for example the **young, female, good health** and **young, male, good health** will be multiplied by the adjustment factor **1.2041** which results in the following table.
+
+```{r}
+#| label: tbl-high-level-geography-age-health-iter1
+#| tbl-cap: "High Level Geography Age Health Constraint Balancing Iteration 1"
+#| echo: false
+#| warning: false
+
+df_seed_iter1 <- df_seed_iter1 %>% 
+  left_join(df_age_health_balance %>% mutate(AGE, HEALTH, ADJ_0_AH = ADJ_0, .keep = "none"), by = c("AGE", "HEALTH")) %>%
+  mutate(P_0_AH = P_0_AG * ADJ_0_AH)
+
+tbl_iter1 <- flextable(df_seed_iter1 %>% 
+                        mutate(AGE = age_categories[AGE],
+                               GENDER = gender_categories[GENDER],
+                               HEALTH = health_categories[HEALTH])) %>%
+  autofit() %>%
+  add_header_row(values = c("Age", "Gender", "Health", "Seed", "Iteration 1 (Age, Gender)", "Iteration 1 (Age, Health)"), colwidths = c(1, 1, 1, 1, 2, 2)) %>%
+  align(i = 1, j = c(5:8), align = "center", part = "header") %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    HEALTH = "Health",
+                    P_SEED = "Seed",
+                    ADJ_0_AG = "Adjustment Factor",
+                    P_0_AG = "P Adjusted",
+                    ADJ_0_AH = "Adjustment Factor",
+                    P_0_AH = "P Adjusted") %>%
+  set_formatter(P_SEED = function(x){sprintf("%.4f", x)},
+                ADJ_0_AG = function(x){sprintf("%.4f", x)},
+                P_0_AG = function(x){sprintf("%.4f", x)},
+                ADJ_0_AH = function(x){sprintf("%.4f", x)},
+                P_0_AH = function(x){sprintf("%.4f", x)}) %>%
+  merge_v(j = 1:8, part = "header") %>%
+  merge_v(j = 1:3) %>%
+  vline(j = c(3, 4, 6), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:17, border = fp_border(color = "grey80"))
+tbl_iter1
+```
+
+After the balancing we can see that age and health combinations are now balanced to the high level geography age and health constraint. 
+
+For example the **young, good** proportion is the sum of the **young, female, good health** and the **young, male, good health** proportions.
+
+----
+
+$$
+  \begin{aligned}
+    P(age, health) &= \sum_{gender}P(age, gender, health) \\
+    P(young, good) &= P(young, female, good) + P(young, male, good) \\
+    P(young, good) &= 0.0809 + 0.0833 \\
+    P(young, good) &= 0.1642 \\
+  \end{aligned}
+$$
+
+----
+
+Which we can see from @tbl-age-health is the same as the original constraint value.
+
+#### Gender and Health Constraint
+
+We now move on to balancing by the final constraint which is **gender and health** in the same way as we did with the other tow constraints. We calculate the current proportions by summing each of the **gender and health** combinations that we have just created by balancing for **age and health**. For example the **female, good** proportion is the sum of the **young, female, good health**, the **adult, female, good health**, and **elderly, female, good health**  proportions.
+
+----
+
+$$
+  \begin{aligned}
+    P(gender, health) &= \sum_{age}P(age, gender, health) \\
+    P(female, good) &= P(young, female, good) + P(adult, female, good) + P(adult, female, good) \\
+    P(female, good) &= 0.0809 + 0.2491 + 0.0838 \\
+    P(female, good) &= 0.4138 \\
+  \end{aligned}
+$$
+
+----
+
+```{r}
+#| label: tbl-high-level-geography-gender-health-balance-step1
+#| tbl-cap: "High Level Geography Gender Health Balance (Step 1)"
+#| echo: false
+#| warning: false
+
+df_gender_health_balance <- df_gender_health %>% 
+  mutate(GENDER, HEALTH, P_ORIGINAL = PCT, .keep = "none") %>%
+  left_join(df_seed_iter1 %>% 
+              group_by(GENDER, HEALTH) %>% 
+              summarise(P_0 = sum(P_0_AH), .groups = "keep") %>% 
+              ungroup(),
+            by = c("GENDER", "HEALTH")) %>%
+  mutate(ADJ_0 = P_ORIGINAL / P_0)
+
+tbl_gender_health_balance <- flextable(df_gender_health_balance %>%
+                                         mutate(GENDER = gender_categories[GENDER],
+                                                HEALTH = health_categories[HEALTH])) %>% 
+  autofit() %>%
+  add_header_row(values = c("Gender", "Health", "P(Gender, Health)", "Adjustment Factor\n(Orig/Calc)"),
+                 colwidths = c(1,1,2,1)) %>%
+  set_header_labels(GENDER = "Gender",
+                    HEALTH = "Health",
+                    P_ORIGINAL = "Constraint",
+                    P_0 = "Seed",
+                    ADJ_0 = "Adjustment Factor\n(Orig/Calc)") %>%
+  merge_v(part = "header") %>%
+  set_formatter(P_ORIGINAL = function(x){sprintf("%.4f", x)},
+                P_0 = function(x){sprintf("%.4f", x)},
+                ADJ_0 = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(2, 4))
+tbl_gender_health_balance
+```
+
+As before We adjust all the proportions in the seed table by the relevant adjustment factor, for example the **young, female, good health**, **adult, female, good health**, and **elderly, female, good health** will be multiplied by the adjustment factor **0.9990** which results in the following table.
+
+```{r}
+#| label: tbl-high-level-geography-gender-health-iter1
+#| tbl-cap: "High Level Geography Gender Health Constraint Balancing Iteration 1"
+#| echo: false
+#| warning: false
+
+df_seed_iter1 <- df_seed_iter1 %>% 
+  left_join(df_gender_health_balance %>% mutate(GENDER, HEALTH, ADJ_0_GH = ADJ_0, .keep = "none"), by = c("GENDER", "HEALTH")) %>%
+  mutate(P_0_GH = P_0_AH * ADJ_0_GH)
+
+tbl_iter1 <- flextable(df_seed_iter1 %>% 
+                        mutate(AGE = age_categories[AGE],
+                               GENDER = gender_categories[GENDER],
+                               HEALTH = health_categories[HEALTH])) %>%
+  autofit() %>%
+  add_header_row(values = c("Age", "Gender", "Health", "Seed", "Iteration 1 (Age, Gender)", "Iteration 1 (Age, Health)", "Iteration 1 (Gender, Health)"), colwidths = c(1, 1, 1, 1, 2, 2, 2)) %>%
+  align(i = 1, j = c(5:10), align = "center", part = "header") %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    HEALTH = "Health",
+                    P_SEED = "Seed",
+                    ADJ_0_AG = "Adjustment Factor",
+                    P_0_AG = "P Adjusted",
+                    ADJ_0_AH = "Adjustment Factor",
+                    P_0_AH = "P Adjusted",
+                    ADJ_0_GH = "Adjustment Factor",
+                    P_0_GH = "P Adjusted") %>%
+  set_formatter(P_SEED = function(x){sprintf("%.4f", x)},
+                ADJ_0_AG = function(x){sprintf("%.4f", x)},
+                P_0_AG = function(x){sprintf("%.4f", x)},
+                ADJ_0_AH = function(x){sprintf("%.4f", x)},
+                P_0_AH = function(x){sprintf("%.4f", x)},
+                ADJ_0_GH = function(x){sprintf("%.4f", x)},
+                P_0_GH = function(x){sprintf("%.4f", x)}) %>%
+  merge_v(j = 1:10, part = "header") %>%
+  merge_v(j = 1:3) %>%
+  vline(j = c(3, 4, 6, 8), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:17, border = fp_border(color = "grey80"))
+tbl_iter1
+```
+
+After the balancing we can see that gender and health combinations are now balanced to the high level geography gender and health constraint. 
+
+For example the **female, good** proportion is the sum of the **young, female, good health**, **adult, female, good health**, and **elderly, female, good health** proportions.
+
+----
+
+$$
+  \begin{aligned}
+    P(gender, health) &= \sum_{gender}P(age, gender, health) \\
+    P(female, good) &= P(young, female, good) + P(elderly, female, good) + P(elderly, female, good) \\
+    P(female, good) &= 0.0808 + 0.2489 + 0.0838 \\
+    P(female, good) &= 0.4135 \\
+  \end{aligned}
+$$
+
+----
+
+Which we can see from @tbl-gender-health is the same as the original constraint value (NB: 0.4135 vs 0.4134 due to rounding effects).
+
+### Covergence 
+
+Each time we balanced for one of the constraints that constraint would be balance to the high level geography but that in turn would unbalance the other constraints.
+
+So if we look at the **gender and health** constraint the summed categories from the latest iteration match the original high level gender health constraint as this was the most recent constraint that we balanced.
+
+```{r}
+#| label: tbl-high-level-geography-gender-health-diff
+#| tbl-cap: "High Level Geography Gender Health Difference Iteration 1"
+#| echo: false
+#| warning: false
+
+df_gender_health_diff <- df_gender_health %>% mutate(GENDER, HEALTH, P_ORIG = PCT, .keep = "none") %>%
+  left_join(df_seed_iter1 %>% group_by(GENDER, HEALTH) %>% summarise(P1 = sum(P_0_GH), .groups = "keep") %>% ungroup(),
+            by = c("GENDER", "HEALTH")) %>%
+  mutate(ABS_DIFF = abs(P_ORIG - P1)) %>% 
+  arrange(GENDER, HEALTH)
+
+tbl_gender_health_diff <- flextable(df_gender_health_diff %>%
+                                      mutate(GENDER = gender_categories[GENDER],
+                                             HEALTH = health_categories[HEALTH])) %>%
+  autofit() %>%
+  add_header_row(values = c("Gender", "Health", "Constraint" , "Iteration 1"), colwidths = c(1, 1, 1, 2)) %>%
+  align(i = 1, j = 4:5, align = "center", part = "header") %>%
+  set_header_labels(GENDER = "Gender",
+                    HEALTH = "Health",
+                    P_ORIG = "Constraint",
+                    P1 = "Iteration 1",
+                    ABS_DIFF = "Abs. Diff.") %>%
+  merge_v(j = 1:3, part = "header") %>%
+  merge_v(j = 1:2, part = "body") %>%
+  set_formatter(P_ORIG = function(x){sprintf("%.9f", x)},
+                P1 = function(x){sprintf("%.9f", x)},
+                ABS_DIFF = function(x){sprintf("%.9f", x)}) %>%
+  vline(j = c(2, 3), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:5, border = fp_border(color = "grey80"))
+tbl_gender_health_diff
+```
+
+However if we look at the **age and gender** constraint, the first we balanced. We can see that it has become unbalanced as there are differences between the original constraint and the sum of the categories after balancing for **gender and health**
+
+```{r}
+#| label: tbl-high-level-geography-age-gender-diff
+#| tbl-cap: "High Level Geography Age Gender Difference Iteration 1"
+#| echo: false
+#| warning: false
+
+df_age_gender_diff <- df_age_gender %>% mutate(AGE, GENDER, P_ORIG = PCT, .keep = "none") %>%
+  left_join(df_seed_iter1 %>% group_by(AGE, GENDER) %>% summarise(P1 = sum(P_0_GH), .groups = "keep") %>% ungroup(),
+            by = c("AGE", "GENDER")) %>%
+  mutate(ABS_DIFF = abs(P_ORIG - P1)) %>% 
+  arrange(AGE, GENDER)
+
+tbl_age_gender_diff <- flextable(df_age_gender_diff %>%
+                                   mutate(AGE = age_categories[AGE],
+                                          GENDER = gender_categories[GENDER])) %>%
+  autofit() %>%
+  add_header_row(values = c("Age", "Gender", "Constraint" , "Iteration 1"), colwidths = c(1, 1, 1, 2)) %>%
+  align(i = 1, j = 4:5, align = "center", part = "header") %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    P_ORIG = "Constraint",
+                    P1 = "Iteration 1",
+                    ABS_DIFF = "Abs. Diff.") %>%
+  merge_v(j = 1:3, part = "header") %>%
+  merge_v(j = 1:2, part = "body") %>%
+  set_formatter(P_ORIG = function(x){sprintf("%.9f", x)},
+                P1 = function(x){sprintf("%.9f", x)},
+                ABS_DIFF = function(x){sprintf("%.9f", x)}) %>%
+  vline(j = c(2, 3), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:5, border = fp_border(color = "grey80"))
+tbl_age_gender_diff
+```
+
+And if we do the same for the **age and health** constraint, we can again see that it has become unbalanced as there are differences between the original constraint and the sum of the categories after balancing for **gender and health**
+
+```{r}
+#| label: tbl-high-level-geography-age-health-diff
+#| tbl-cap: "High Level Geography Age Health Difference Iteration 1"
+#| echo: false
+#| warning: false
+
+df_age_health_diff <- df_age_health %>% mutate(AGE, HEALTH, P_ORIG = PCT, .keep = "none") %>%
+  left_join(df_seed_iter1 %>% group_by(AGE, HEALTH) %>% summarise(P1 = sum(P_0_GH), .groups = "keep") %>% ungroup(),
+            by = c("AGE", "HEALTH")) %>%
+  mutate(ABS_DIFF = abs(P_ORIG - P1)) %>% 
+  arrange(AGE, HEALTH)
+
+tbl_age_health_diff <- flextable(df_age_health_diff %>%
+                                   mutate(AGE = age_categories[AGE],
+                                          HEALTH = health_categories[HEALTH])) %>%
+  autofit() %>%
+  add_header_row(values = c("Age", "Health", "Constraint" , "Iteration 1"), colwidths = c(1, 1, 1, 2)) %>%
+  align(i = 1, j = 4:5, align = "center", part = "header") %>%
+  set_header_labels(AGE = "Age",
+                    HEALTH = "Health",
+                    P_ORIG = "Constraint",
+                    P1 = "Iteration 1",
+                    ABS_DIFF = "Abs. Diff.") %>%
+  merge_v(j = 1:3, part = "header") %>%
+  merge_v(j = 1:2, part = "body") %>%
+  set_formatter(P_ORIG = function(x){sprintf("%.9f", x)},
+                P1 = function(x){sprintf("%.9f", x)},
+                ABS_DIFF = function(x){sprintf("%.9f", x)}) %>%
+  vline(j = c(2, 3), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:5, border = fp_border(color = "grey80"))
+tbl_age_health_diff
+```
+
+From these 3 tables we can calculate the maximum error which is this instance is `r max(df_age_gender_diff$ABS_DIFF, df_age_health_diff$ABS_DIFF, df_gender_health_diff$ABS_DIFF)`
