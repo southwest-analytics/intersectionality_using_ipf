@@ -4,6 +4,7 @@ subtitle: "Worked Example"
 author: "Richard Blackwell"
 format: 
   html:
+    self-contained: true
     css: hisw.css
     grid:
       sidebar-width: 200px
@@ -164,6 +165,8 @@ The age (3 categories) and gender (2 categories) constraint based on the North D
 df_age_gender <- readxl::read_xlsx(path = "worked_example/data/constraints.xlsx",
                                    sheet = "AGE_GENDER") %>%
   mutate(AREA = sprintf("[%s] - %s", LAD24CD, LAD24NM),
+         AGE = factor(AGE, levels = c("YOUNG", "ADULT", "ELDERLY")),
+         GENDER = factor(GENDER, levels = c("FEMALE", "MALE")),
          PCT = POPN/sum(POPN)) %>%
   select(AREA, AGE, GENDER, POPN, PCT)
 
@@ -220,6 +223,8 @@ The age (3 categories) and health (3 categories) constraint based on the North D
 df_age_health <- readxl::read_xlsx(path = "worked_example/data/constraints.xlsx",
                                    sheet = "AGE_HEALTH") %>%
   mutate(AREA = sprintf("[%s] - %s", LAD24CD, LAD24NM),
+         AGE = factor(AGE, levels = c("YOUNG", "ADULT", "ELDERLY")),
+         HEALTH = factor(HEALTH, levels = c("GOOD", "FAIR", "POOR")),
          PCT = POPN/sum(POPN)) %>%
   select(AREA, AGE, HEALTH, POPN, PCT)
 
@@ -280,6 +285,8 @@ The gender (2 categories) and health (3 categories) constraint based on the Nort
 df_gender_health <- readxl::read_xlsx(path = "worked_example/data/constraints.xlsx",
                                    sheet = "GENDER_HEALTH") %>%
   mutate(AREA = sprintf("[%s] - %s", LAD24CD, LAD24NM),
+         GENDER = factor(GENDER, levels = c("FEMALE", "MALE")),
+         HEALTH = factor(HEALTH, levels = c("GOOD", "FAIR", "POOR")),
          PCT = POPN/sum(POPN)) %>%
   select(AREA, GENDER, HEALTH, POPN, PCT)
 
@@ -340,7 +347,7 @@ flowchart TD
 
 ## Higher Level Geography IPF
 
-### Seed Creation
+### Seed
 
 We will start by creating the overall seed table for the North Devon Local Authority District; age (3 categories), gender (2 categories), and health (3 categories). 
 
@@ -386,7 +393,10 @@ df_seed <- data.frame(AREA = "[E07000043] - North Devon",
                       AGE = c(rep("YOUNG", 6), rep("ADULT", 6), rep("ELDERLY", 6)),
                       GENDER = rep(c(rep("FEMALE", 3), rep("MALE", 3)), 3),
                       HEALTH = rep(c("GOOD", "FAIR", "POOR"), 6)) %>%
-  mutate(P_AGE = p_age[AGE], 
+  mutate(AGE = factor(AGE, levels = c("YOUNG", "ADULT", "ELDERLY")),
+         GENDER = factor(GENDER, levels = c("FEMALE", "MALE")),
+         HEALTH = factor(HEALTH, levels = c("GOOD", "FAIR", "POOR")),
+         P_AGE = p_age[AGE], 
          P_GENDER = p_gender[GENDER], 
          P_HEALTH = p_health[HEALTH],
          P_OVERALL = P_AGE * P_GENDER * P_HEALTH)
@@ -485,12 +495,12 @@ We then adjust all the proportions in the seed table by the relevant adjustment 
 #| echo: false
 #| warning: false
 
-df_seed_iter1 <- df_seed %>% 
+df_seed <- df_seed %>% 
   mutate(AGE, GENDER, HEALTH, P_SEED = P_OVERALL, .keep = "none") %>%
   left_join(df_age_gender_balance %>% mutate(AGE, GENDER, ADJ_0_AG = ADJ_0, .keep = "none"), by = c("AGE", "GENDER")) %>%
   mutate(P_0_AG = P_SEED * ADJ_0_AG)
 
-tbl_iter1 <- flextable(df_seed_iter1 %>% 
+tbl_iter1 <- flextable(df_seed %>% 
                         mutate(AGE = age_categories[AGE],
                                GENDER = gender_categories[GENDER],
                                HEALTH = health_categories[HEALTH])) %>%
@@ -557,7 +567,7 @@ $$
 
 df_age_health_balance <- df_age_health %>% 
   mutate(AGE, HEALTH, P_ORIGINAL = PCT, .keep = "none") %>%
-  left_join(df_seed_iter1 %>% 
+  left_join(df_seed %>% 
               group_by(AGE, HEALTH) %>% 
               summarise(P_0 = sum(P_0_AG), .groups = "keep") %>% 
               ungroup(),
@@ -591,11 +601,11 @@ As before We adjust all the proportions in the seed table by the relevant adjust
 #| echo: false
 #| warning: false
 
-df_seed_iter1 <- df_seed_iter1 %>% 
+df_seed <- df_seed %>% 
   left_join(df_age_health_balance %>% mutate(AGE, HEALTH, ADJ_0_AH = ADJ_0, .keep = "none"), by = c("AGE", "HEALTH")) %>%
   mutate(P_0_AH = P_0_AG * ADJ_0_AH)
 
-tbl_iter1 <- flextable(df_seed_iter1 %>% 
+tbl_iter1 <- flextable(df_seed %>% 
                         mutate(AGE = age_categories[AGE],
                                GENDER = gender_categories[GENDER],
                                HEALTH = health_categories[HEALTH])) %>%
@@ -666,7 +676,7 @@ $$
 
 df_gender_health_balance <- df_gender_health %>% 
   mutate(GENDER, HEALTH, P_ORIGINAL = PCT, .keep = "none") %>%
-  left_join(df_seed_iter1 %>% 
+  left_join(df_seed %>% 
               group_by(GENDER, HEALTH) %>% 
               summarise(P_0 = sum(P_0_AH), .groups = "keep") %>% 
               ungroup(),
@@ -700,11 +710,11 @@ As before We adjust all the proportions in the seed table by the relevant adjust
 #| echo: false
 #| warning: false
 
-df_seed_iter1 <- df_seed_iter1 %>% 
+df_seed <- df_seed %>% 
   left_join(df_gender_health_balance %>% mutate(GENDER, HEALTH, ADJ_0_GH = ADJ_0, .keep = "none"), by = c("GENDER", "HEALTH")) %>%
   mutate(P_0_GH = P_0_AH * ADJ_0_GH)
 
-tbl_iter1 <- flextable(df_seed_iter1 %>% 
+tbl_iter1 <- flextable(df_seed %>% 
                         mutate(AGE = age_categories[AGE],
                                GENDER = gender_categories[GENDER],
                                HEALTH = health_categories[HEALTH])) %>%
@@ -754,22 +764,22 @@ $$
 
 Which we can see from @tbl-gender-health is the same as the original constraint value (NB: 0.4135 vs 0.4134 due to rounding effects).
 
-### Covergence 
+### Convergence 
 
 Each time we balanced for one of the constraints that constraint would be balance to the high level geography but that in turn would unbalance the other constraints.
 
 So if we look at the **gender and health** constraint the summed categories from the latest iteration match the original high level gender health constraint as this was the most recent constraint that we balanced.
 
 ```{r}
-#| label: tbl-high-level-geography-gender-health-diff
+#| label: tbl-high-level-geography-gender-health-diff-iter1
 #| tbl-cap: "High Level Geography Gender Health Difference Iteration 1"
 #| echo: false
 #| warning: false
 
 df_gender_health_diff <- df_gender_health %>% mutate(GENDER, HEALTH, P_ORIG = PCT, .keep = "none") %>%
-  left_join(df_seed_iter1 %>% group_by(GENDER, HEALTH) %>% summarise(P1 = sum(P_0_GH), .groups = "keep") %>% ungroup(),
+  left_join(df_seed %>% group_by(GENDER, HEALTH) %>% summarise(P1 = sum(P_0_GH), .groups = "keep") %>% ungroup(),
             by = c("GENDER", "HEALTH")) %>%
-  mutate(ABS_DIFF = abs(P_ORIG - P1)) %>% 
+  mutate(ABS_DIFF_1 = abs(P_ORIG - P1)) %>% 
   arrange(GENDER, HEALTH)
 
 tbl_gender_health_diff <- flextable(df_gender_health_diff %>%
@@ -780,14 +790,14 @@ tbl_gender_health_diff <- flextable(df_gender_health_diff %>%
   align(i = 1, j = 4:5, align = "center", part = "header") %>%
   set_header_labels(GENDER = "Gender",
                     HEALTH = "Health",
-                    P_ORIG = "Constraint",
-                    P1 = "Iteration 1",
-                    ABS_DIFF = "Abs. Diff.") %>%
+                    P_ORIG = "P0",
+                    P1 = "P1",
+                    ABS_DIFF_1 = "Abs. Diff.") %>%
   merge_v(j = 1:3, part = "header") %>%
   merge_v(j = 1:2, part = "body") %>%
   set_formatter(P_ORIG = function(x){sprintf("%.9f", x)},
                 P1 = function(x){sprintf("%.9f", x)},
-                ABS_DIFF = function(x){sprintf("%.9f", x)}) %>%
+                ABS_DIFF_1 = function(x){sprintf("%.9f", x)}) %>%
   vline(j = c(2, 3), border = fp_border(color = "grey80")) %>%
   hline(i = 1:5, border = fp_border(color = "grey80"))
 tbl_gender_health_diff
@@ -796,15 +806,15 @@ tbl_gender_health_diff
 However if we look at the **age and gender** constraint, the first we balanced. We can see that it has become unbalanced as there are differences between the original constraint and the sum of the categories after balancing for **gender and health**
 
 ```{r}
-#| label: tbl-high-level-geography-age-gender-diff
+#| label: tbl-high-level-geography-age-gender-diff-iter1
 #| tbl-cap: "High Level Geography Age Gender Difference Iteration 1"
 #| echo: false
 #| warning: false
 
 df_age_gender_diff <- df_age_gender %>% mutate(AGE, GENDER, P_ORIG = PCT, .keep = "none") %>%
-  left_join(df_seed_iter1 %>% group_by(AGE, GENDER) %>% summarise(P1 = sum(P_0_GH), .groups = "keep") %>% ungroup(),
+  left_join(df_seed %>% group_by(AGE, GENDER) %>% summarise(P1 = sum(P_0_GH), .groups = "keep") %>% ungroup(),
             by = c("AGE", "GENDER")) %>%
-  mutate(ABS_DIFF = abs(P_ORIG - P1)) %>% 
+  mutate(ABS_DIFF_1 = abs(P_ORIG - P1)) %>% 
   arrange(AGE, GENDER)
 
 tbl_age_gender_diff <- flextable(df_age_gender_diff %>%
@@ -815,14 +825,14 @@ tbl_age_gender_diff <- flextable(df_age_gender_diff %>%
   align(i = 1, j = 4:5, align = "center", part = "header") %>%
   set_header_labels(AGE = "Age",
                     GENDER = "Gender",
-                    P_ORIG = "Constraint",
-                    P1 = "Iteration 1",
-                    ABS_DIFF = "Abs. Diff.") %>%
+                    P_ORIG = "P0",
+                    P1 = "P1",
+                    ABS_DIFF_1 = "Abs. Diff.") %>%
   merge_v(j = 1:3, part = "header") %>%
   merge_v(j = 1:2, part = "body") %>%
   set_formatter(P_ORIG = function(x){sprintf("%.9f", x)},
                 P1 = function(x){sprintf("%.9f", x)},
-                ABS_DIFF = function(x){sprintf("%.9f", x)}) %>%
+                ABS_DIFF_1 = function(x){sprintf("%.9f", x)}) %>%
   vline(j = c(2, 3), border = fp_border(color = "grey80")) %>%
   hline(i = 1:5, border = fp_border(color = "grey80"))
 tbl_age_gender_diff
@@ -831,15 +841,15 @@ tbl_age_gender_diff
 And if we do the same for the **age and health** constraint, we can again see that it has become unbalanced as there are differences between the original constraint and the sum of the categories after balancing for **gender and health**
 
 ```{r}
-#| label: tbl-high-level-geography-age-health-diff
+#| label: tbl-high-level-geography-age-health-diff-iter1
 #| tbl-cap: "High Level Geography Age Health Difference Iteration 1"
 #| echo: false
 #| warning: false
 
 df_age_health_diff <- df_age_health %>% mutate(AGE, HEALTH, P_ORIG = PCT, .keep = "none") %>%
-  left_join(df_seed_iter1 %>% group_by(AGE, HEALTH) %>% summarise(P1 = sum(P_0_GH), .groups = "keep") %>% ungroup(),
+  left_join(df_seed %>% group_by(AGE, HEALTH) %>% summarise(P1 = sum(P_0_GH), .groups = "keep") %>% ungroup(),
             by = c("AGE", "HEALTH")) %>%
-  mutate(ABS_DIFF = abs(P_ORIG - P1)) %>% 
+  mutate(ABS_DIFF_1 = abs(P_ORIG - P1)) %>% 
   arrange(AGE, HEALTH)
 
 tbl_age_health_diff <- flextable(df_age_health_diff %>%
@@ -850,17 +860,956 @@ tbl_age_health_diff <- flextable(df_age_health_diff %>%
   align(i = 1, j = 4:5, align = "center", part = "header") %>%
   set_header_labels(AGE = "Age",
                     HEALTH = "Health",
-                    P_ORIG = "Constraint",
-                    P1 = "Iteration 1",
-                    ABS_DIFF = "Abs. Diff.") %>%
+                    P_ORIG = "P0",
+                    P1 = "P1",
+                    ABS_DIFF_1 = "Abs. Diff.") %>%
   merge_v(j = 1:3, part = "header") %>%
   merge_v(j = 1:2, part = "body") %>%
   set_formatter(P_ORIG = function(x){sprintf("%.9f", x)},
                 P1 = function(x){sprintf("%.9f", x)},
-                ABS_DIFF = function(x){sprintf("%.9f", x)}) %>%
+                ABS_DIFF_1 = function(x){sprintf("%.9f", x)}) %>%
   vline(j = c(2, 3), border = fp_border(color = "grey80")) %>%
   hline(i = 1:5, border = fp_border(color = "grey80"))
 tbl_age_health_diff
 ```
 
-From these 3 tables we can calculate the maximum error which is this instance is `r max(df_age_gender_diff$ABS_DIFF, df_age_health_diff$ABS_DIFF, df_gender_health_diff$ABS_DIFF)`
+From these three tables we can calculate the maximum error which is this instance is `r sprintf("%.9f", max(df_age_gender_diff$ABS_DIFF_1, df_age_health_diff$ABS_DIFF_1, df_gender_health_diff$ABS_DIFF_1))`
+
+We will set a tolerance level which is the level of approximation we will allow the higher the value the higher the level of approximation.
+
+```{r}
+#| label: convergence-iter2
+#| echo: false
+#| warning: false
+
+# Balance for Age Gender
+df_age_gender_balance <- df_age_gender_balance %>% 
+  left_join(
+    df_seed %>% 
+      group_by(AGE, GENDER) %>% 
+      summarise(P_1 = sum(P_0_GH), .groups = "keep") %>% 
+      ungroup(),
+    by = c("AGE", "GENDER")) %>%
+  mutate(ADJ_1 = P_ORIGINAL / P_1)
+
+df_seed <- df_seed %>% 
+  left_join(df_age_gender_balance %>% 
+              mutate(AGE, GENDER, ADJ_1_AG = ADJ_1, .keep = "none"),
+            by = c("AGE", "GENDER")) %>%
+  mutate(P_1_AG = P_0_GH * ADJ_1_AG)
+
+# Balance for Age Heath
+df_age_health_balance <- df_age_health_balance %>% 
+  left_join(
+    df_seed %>% 
+      group_by(AGE, HEALTH) %>% 
+      summarise(P_1 = sum(P_1_AG), .groups = "keep") %>% 
+      ungroup(),
+    by = c("AGE", "HEALTH")) %>%
+  mutate(ADJ_1 = P_ORIGINAL / P_1)
+
+df_seed <- df_seed %>% 
+  left_join(df_age_health_balance %>% 
+              mutate(AGE, HEALTH, ADJ_1_AH = ADJ_1, .keep = "none"),
+            by = c("AGE", "HEALTH")) %>%
+  mutate(P_1_AH = P_1_AG * ADJ_1_AH)
+
+# Balance for Gender Heath
+df_gender_health_balance <- df_gender_health_balance %>% 
+  left_join(
+    df_seed %>% 
+      group_by(GENDER, HEALTH) %>% 
+      summarise(P_1 = sum(P_1_AH), .groups = "keep") %>% 
+      ungroup(),
+    by = c("GENDER", "HEALTH")) %>%
+  mutate(ADJ_1 = P_ORIGINAL / P_1)
+
+df_seed <- df_seed %>% 
+  left_join(df_gender_health_balance %>% 
+              mutate(GENDER, HEALTH, ADJ_1_GH = ADJ_1, .keep = "none"),
+            by = c("GENDER", "HEALTH")) %>%
+  mutate(P_1_GH = P_1_AH * ADJ_1_GH)
+
+# Check convergence
+df_age_gender_diff <- df_age_gender_diff %>% 
+  left_join(df_seed %>%
+              group_by(AGE, GENDER) %>%
+              summarise(P2 = sum(P_1_GH), .groups = "keep") %>%
+              ungroup(),
+            by = c("AGE", "GENDER")) %>%
+  mutate(ABS_DIFF_2 = abs(P_ORIG - P2)) %>%
+  arrange(AGE, GENDER)
+
+df_age_health_diff <- df_age_health_diff %>% 
+  left_join(df_seed %>%
+              group_by(AGE, HEALTH) %>%
+              summarise(P2 = sum(P_1_GH), .groups = "keep") %>%
+              ungroup(),
+            by = c("AGE", "HEALTH")) %>%
+  mutate(ABS_DIFF_2 = abs(P_ORIG - P2)) %>%
+  arrange(AGE, HEALTH)
+                
+df_gender_health_diff <- df_gender_health_diff %>% 
+  left_join(df_seed %>%
+              group_by(GENDER, HEALTH) %>%
+              summarise(P2 = sum(P_1_GH), .groups = "keep") %>%
+              ungroup(),
+            by = c("GENDER", "HEALTH")) %>%
+  mutate(ABS_DIFF_2 = abs(P_ORIG - P2)) %>%
+  arrange(GENDER, HEALTH)
+```
+
+After running the second iteration the following tables show the differences between the original constraint and the latest balancing iteration.
+
+```{r}
+#| label: tbl-high-level-geography-age-gender-diff-iter2
+#| tbl-cap: "High Level Geography Age Gender Difference Iteration 2"
+#| echo: false
+#| warning: false
+
+tbl_age_gender_diff <- flextable(df_age_gender_diff %>%
+                                   mutate(AGE = age_categories[AGE],
+                                          GENDER = gender_categories[GENDER])) %>%
+  autofit() %>%
+  add_header_row(values = c("Age", "Gender", "Constraint", "Iteration 1", "Iteration 2"), colwidths = c(1, 1, 1, 2, 2)) %>%
+  align(i = 1, j = 4:7, align = "center", part = "header") %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    P_ORIG = "Constraint",
+                    P1 = "Iteration 1",
+                    ABS_DIFF_1 = "Abs. Diff.",
+                    P2 = "Iteration 2",
+                    ABS_DIFF_2 = "Abs. Diff.") %>%
+  merge_v(j = 1:3, part = "header") %>%
+  merge_v(j = 1:2, part = "body") %>%
+  set_formatter(P_ORIG = function(x){sprintf("%.9f", x)},
+                P1 = function(x){sprintf("%.9f", x)},
+                ABS_DIFF_1 = function(x){sprintf("%.9f", x)},
+                P2 = function(x){sprintf("%.9f", x)},
+                ABS_DIFF_2 = function(x){sprintf("%.9f", x)}) %>%
+  vline(j = c(2, 3, 5), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:5, border = fp_border(color = "grey80"))
+tbl_age_gender_diff
+```
+
+After the first iteration the largest difference for the **age and gender** constraint was `r sprintf("%.9f", max(df_age_gender_diff$ABS_DIFF_1))` and after the second iteration it was `r sprintf("%.9f", max(df_age_gender_diff$ABS_DIFF_2))`
+
+```{r}
+#| label: tbl-high-level-geography-age-health-diff-iter2
+#| tbl-cap: "High Level Geography Age Health Difference Iteration 2"
+#| echo: false
+#| warning: false
+
+tbl_age_health_diff <- flextable(df_age_health_diff %>%
+                                   mutate(AGE = age_categories[AGE],
+                                          HEALTH = health_categories[HEALTH])) %>%
+  autofit() %>%
+  add_header_row(values = c("Age", "Health", "Constraint", "Iteration 1", "Iteration 2"), colwidths = c(1, 1, 1, 2, 2)) %>%
+  align(i = 1, j = 4:7, align = "center", part = "header") %>%
+  set_header_labels(AGE = "Age",
+                    HEALTH = "Health",
+                    P_ORIG = "Constraint",
+                    P1 = "Iteration 1",
+                    ABS_DIFF_1 = "Abs. Diff.",
+                    P2 = "Iteration 2",
+                    ABS_DIFF_2 = "Abs. Diff.") %>%
+  merge_v(j = 1:3, part = "header") %>%
+  merge_v(j = 1:2, part = "body") %>%
+  set_formatter(P_ORIG = function(x){sprintf("%.9f", x)},
+                P1 = function(x){sprintf("%.9f", x)},
+                ABS_DIFF_1 = function(x){sprintf("%.9f", x)},
+                P2 = function(x){sprintf("%.9f", x)},
+                ABS_DIFF_2 = function(x){sprintf("%.9f", x)}) %>%
+  vline(j = c(2, 3, 5), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:5, border = fp_border(color = "grey80"))
+tbl_age_health_diff
+```
+
+After the first iteration the largest difference for the **age and health** constraint was `r sprintf("%.9f", max(df_age_health_diff$ABS_DIFF_1))` and after the second iteration it was `r sprintf("%.9f", max(df_age_health_diff$ABS_DIFF_2))`
+
+
+```{r}
+#| label: tbl-high-level-geography-gender-health-diff-iter2
+#| tbl-cap: "High Level Geography Gender Health Difference Iteration 2"
+#| echo: false
+#| warning: false
+
+tbl_gender_health_diff <- flextable(df_gender_health_diff %>%
+                                      mutate(GENDER = gender_categories[GENDER],
+                                             HEALTH = health_categories[HEALTH])) %>%
+  autofit() %>%
+  add_header_row(values = c("Gender", "Health", "Constraint", "Iteration 1", "Iteration 2"), colwidths = c(1, 1, 1, 2, 2)) %>%
+  align(i = 1, j = 4:7, align = "center", part = "header") %>%
+  set_header_labels(GENDER = "Gender",
+                    HEALTH = "Health",
+                    P_ORIG = "Constraint",
+                    P1 = "Iteration 1",
+                    ABS_DIFF_1 = "Abs. Diff.",
+                    P2 = "Iteration 2",
+                    ABS_DIFF_2 = "Abs. Diff.") %>%
+  merge_v(j = 1:3, part = "header") %>%
+  merge_v(j = 1:2, part = "body") %>%
+  set_formatter(P_ORIG = function(x){sprintf("%.9f", x)},
+                P1 = function(x){sprintf("%.9f", x)},
+                ABS_DIFF_1 = function(x){sprintf("%.9f", x)},
+                P2 = function(x){sprintf("%.9f", x)},
+                ABS_DIFF_2 = function(x){sprintf("%.9f", x)}) %>%
+  vline(j = c(2, 3, 5), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:5, border = fp_border(color = "grey80"))
+tbl_gender_health_diff
+```
+
+As we balance the **gender and health** constraint last the difference should always be zero.
+
+
+```{r}
+#| label: convergence-iter3
+#| echo: false
+#| warning: false
+
+# Balance for Age Gender
+df_age_gender_balance <- df_age_gender_balance %>% 
+  left_join(
+    df_seed %>% 
+      group_by(AGE, GENDER) %>% 
+      summarise(P_2 = sum(P_1_GH), .groups = "keep") %>% 
+      ungroup(),
+    by = c("AGE", "GENDER")) %>%
+  mutate(ADJ_2 = P_ORIGINAL / P_2)
+
+df_seed <- df_seed %>% 
+  left_join(df_age_gender_balance %>% 
+              mutate(AGE, GENDER, ADJ_2_AG = ADJ_2, .keep = "none"),
+            by = c("AGE", "GENDER")) %>%
+  mutate(P_2_AG = P_1_GH * ADJ_2_AG)
+
+# Balance for Age Heath
+df_age_health_balance <- df_age_health_balance %>% 
+  left_join(
+    df_seed %>% 
+      group_by(AGE, HEALTH) %>% 
+      summarise(P_2 = sum(P_2_AG), .groups = "keep") %>% 
+      ungroup(),
+    by = c("AGE", "HEALTH")) %>%
+  mutate(ADJ_2 = P_ORIGINAL / P_2)
+
+df_seed <- df_seed %>% 
+  left_join(df_age_health_balance %>% 
+              mutate(AGE, HEALTH, ADJ_2_AH = ADJ_2, .keep = "none"),
+            by = c("AGE", "HEALTH")) %>%
+  mutate(P_2_AH = P_2_AG * ADJ_2_AH)
+
+# Balance for Gender Heath
+df_gender_health_balance <- df_gender_health_balance %>% 
+  left_join(
+    df_seed %>% 
+      group_by(GENDER, HEALTH) %>% 
+      summarise(P_2 = sum(P_2_AH), .groups = "keep") %>% 
+      ungroup(),
+    by = c("GENDER", "HEALTH")) %>%
+  mutate(ADJ_2 = P_ORIGINAL / P_2)
+
+df_seed <- df_seed %>% 
+  left_join(df_gender_health_balance %>% 
+              mutate(GENDER, HEALTH, ADJ_2_GH = ADJ_2, .keep = "none"),
+            by = c("GENDER", "HEALTH")) %>%
+  mutate(P_2_GH = P_2_AH * ADJ_2_GH)
+
+# Check convergence
+df_age_gender_diff <- df_age_gender_diff %>% 
+  left_join(df_seed %>%
+              group_by(AGE, GENDER) %>%
+              summarise(P3 = sum(P_2_GH), .groups = "keep") %>%
+              ungroup(),
+            by = c("AGE", "GENDER")) %>%
+  mutate(ABS_DIFF_3 = abs(P_ORIG - P3)) %>%
+  arrange(AGE, GENDER)
+
+df_age_health_diff <- df_age_health_diff %>% 
+  left_join(df_seed %>%
+              group_by(AGE, HEALTH) %>%
+              summarise(P3 = sum(P_2_GH), .groups = "keep") %>%
+              ungroup(),
+            by = c("AGE", "HEALTH")) %>%
+  mutate(ABS_DIFF_3 = abs(P_ORIG - P3)) %>%
+  arrange(AGE, HEALTH)
+                
+df_gender_health_diff <- df_gender_health_diff %>% 
+  left_join(df_seed %>%
+              group_by(GENDER, HEALTH) %>%
+              summarise(P3 = sum(P_2_GH), .groups = "keep") %>%
+              ungroup(),
+            by = c("GENDER", "HEALTH")) %>%
+  mutate(ABS_DIFF_3 = abs(P_ORIG - P3)) %>%
+  arrange(GENDER, HEALTH)
+```
+
+So overall across the three constraints the maximum error after the first iteration was `r sprintf("%.9f", max(c(df_age_gender_diff$ABS_DIFF_1, df_age_health_diff$ABS_DIFF_1, df_gender_health_diff$ABS_DIFF_1)))` and after the second iteration it was `r sprintf("%.9f", max(c(df_age_gender_diff$ABS_DIFF_2, df_age_health_diff$ABS_DIFF_2, df_gender_health_diff$ABS_DIFF_2)))` and after the third iteration it was `r sprintf("%.9f", max(c(df_age_gender_diff$ABS_DIFF_3, df_age_health_diff$ABS_DIFF_3, df_gender_health_diff$ABS_DIFF_3)))`
+
+## Low Level Geography IPF
+
+### Seed 
+
+The seed for the low level geography balancing will be our finalised high level geography table which for reference looks like this.
+
+```{r}
+#| label: tbl-high-level-geography-final
+#| tbl-cap: "High Level Geography Final"
+#| echo: false
+#| warning: false
+
+tbl_low_level_seed <- flextable(df_seed %>% mutate(AGE = age_categories[AGE], 
+                                                   GENDER = gender_categories[GENDER], 
+                                                   HEALTH = health_categories[HEALTH], 
+                                                   P_FINAL = P_2_GH, .keep = "none")) %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    HEALTH = "Health",
+                    P_FINAL = "P (Final)") %>%
+  autofit() %>%
+  set_formatter(P_FINAL = function(x){sprintf("%.4f", x)}) %>%
+  merge_v(j = 1:3, part = "body") %>%
+  vline(j = 3, border = fp_border(color = "grey80")) %>%
+  hline(i = 1:17, border = fp_border(color = "grey80"))
+tbl_low_level_seed
+```
+
+### IPF Balancing
+
+As we have done with the **high level geography constraints** we will now balance the seed table by each of the **low level geography marginals**, We will show the process using just one of the areas, **[E00101824] - Fremington**
+
+#### Age Constraint
+
+We begin by calculating the **age** table based on the seed table by summing each of the age combinations. For example the **young** proportion is the sum of the **young, female, good health**, the **young, female, fair health**, the **young, female, poor health**, **young, male, good health**, the **young, male, fair health**, and the **young, male, poor health** proportions.
+
+----
+
+$$
+  \begin{aligned}
+    P(age) &= \sum_{health, gender}P(age, gender, health) \\
+    P(young) &= P(young, female, good) + P(young, female, fair) + P(young, female, poor) + \\ 
+    &P(young, male, good) + P(young, male, fair) + P(young, male, poor) \\
+    P(young) &= 0.0809 + 0.0018 + 0.0004 \\
+    &0.0833 + 0.0019 + 0.0004 \\
+    P(young) &= 0.1686 \\
+  \end{aligned}
+$$
+
+----
+
+```{r}
+#| label: tbl-low-level-geography-age-balance-step1
+#| tbl-cap: "Low Level Geography Age Balance (Step 1)"
+#| echo: false
+#| warning: false
+
+df_seed_lo <- df_seed %>% mutate(AGE, GENDER, HEALTH, P_SEED = P_2_GH, .keep = "none")
+
+df_age_balance <- df_age %>% 
+  dplyr::filter(AREA == "[E00101824] - Fremington") %>%
+  pivot_longer(cols = 6:8, names_to = "AGE", values_to = "PCT") %>%
+  mutate(AGE = factor(gsub("PCT_", "", AGE), levels = c("YOUNG", "ADULT", "ELDERLY")),
+         P_ORIGINAL = PCT, .keep = "none") %>%
+  left_join(df_seed_lo %>% 
+              group_by(AGE) %>% 
+              summarise(P_0 = sum(P_SEED)) %>% 
+              ungroup(),
+            by = "AGE") %>%
+  mutate(ADJ_0 = P_ORIGINAL / P_0)
+
+tbl_age_balance <- flextable(df_age_balance %>%
+                               mutate(AGE = age_categories[AGE])) %>% 
+  autofit() %>%
+  add_header_row(values = c("Age", "P(Age)", "Adjustment Factor\n(Orig/Calc)"),
+                 colwidths = c(1,2,1)) %>%
+  set_header_labels(AGE = "Age",
+                    P_ORIGINAL = "Constraint",
+                    P_0 = "Seed",
+                    ADJ_0 = "Adjustment Factor\n(Orig/Calc)") %>%
+  merge_v(part = "header") %>%
+  set_formatter(P_ORIGINAL = function(x){sprintf("%.4f", x)},
+                P_0 = function(x){sprintf("%.4f", x)},
+                ADJ_0 = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(1, 3))
+tbl_age_balance
+```
+
+As with the high level geography we then adjust all the proportions in the seed table by the relevant adjustment factor, for example all the **young** categories will be multiplied by the adjustment factor **0.5757** which results in the following table.
+
+```{r}
+#| label: tbl-age-adj
+#| tbl-cap: "Age"
+#| echo: false
+#| warning: false
+
+df_seed_lo <- df_seed_lo %>% 
+  left_join(df_age_balance %>% mutate(AGE, ADJ_0_A = ADJ_0, .keep = "none"), by = c("AGE")) %>%
+  mutate(P_0_A = P_SEED * ADJ_0_A)
+
+tbl_iter1 <- flextable(df_seed_lo %>% 
+                        mutate(AGE = age_categories[AGE],
+                               GENDER = gender_categories[GENDER],
+                               HEALTH = health_categories[HEALTH])) %>%
+  autofit() %>%
+  add_header_row(values = c("Age", "Gender", "Health", "Seed", "Iteration 1 (Age)"), colwidths = c(1, 1, 1, 1, 2)) %>%
+  align(i = 1, j = c(5:6), align = "center", part = "header") %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    HEALTH = "Health",
+                    P_SEED = "Seed",
+                    ADJ_0_A = "Adjustment Factor",
+                    P_0_A = "P Adjusted") %>%
+  set_formatter(P_SEED = function(x){sprintf("%.4f", x)},
+                ADJ_0_A = function(x){sprintf("%.4f", x)},
+                P_0_A = function(x){sprintf("%.4f", x)}) %>%
+  merge_v(j = 1:4, part = "header") %>%
+  merge_v(j = 1:3) %>%
+  vline(j = c(3, 4), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:17, border = fp_border(color = "grey80"))
+tbl_iter1
+```
+
+#### Gender Constraint
+
+We now move on to balancing by the next constraint which is **gender**. In the same process as before we calculate the current proportions by summing each of the **gender** combinations that we have just created by balancing for **age**. For example the **female** proportion is the sum of the **young, female, good health**, **young, female, fair health**, **young, female, poor health**, **adult, female, good health**, **adult, female, fair health**, **adult, female, poor health**, **elderly, female, good health**, **elderly, female, fair health**, and **elderly, female, poor health** proportions.
+
+----
+
+$$
+  \begin{aligned}
+    P(gender) &= \sum_{age, health}P(age, gender, health) \\
+    P(female) &= P(young, female, good) + P(young, female, fair) + P(young, female, poor) + \\ 
+    &P(adult, female, good) + P(adult, female, fair) + P(adult, female, poor) \\
+    &P(elderly, female, good) + P(elderly, female, fair) + P(elderly, female, poor) \\
+    P(female) &= 0.0466 + 0.0010 + 0.0002 \\
+    &0.1624 + 0.0213 + 0.0088 \\
+    &0.1730 + 0.0770 + 0.0303 \\
+    P(female) &= 0.5207 \\
+  \end{aligned}
+$$
+
+----
+
+```{r}
+#| label: tbl-low-level-geography-gender-balance-step1
+#| tbl-cap: "Low Level Geography Gender Balance (Step 1)"
+#| echo: false
+#| warning: false
+
+df_gender_balance <- df_gender %>% 
+  dplyr::filter(AREA == "[E00101824] - Fremington") %>%
+  pivot_longer(cols = 5:6, names_to = "GENDER", values_to = "PCT") %>%
+  mutate(GENDER = factor(gsub("PCT_", "", GENDER), levels = c("FEMALE", "MALE")),
+         P_ORIGINAL = PCT, .keep = "none") %>%
+  left_join(df_seed_lo %>% 
+              group_by(GENDER) %>% 
+              summarise(P_0 = sum(P_0_A)) %>% 
+              ungroup(),
+            by = "GENDER") %>%
+  mutate(ADJ_0 = P_ORIGINAL / P_0)
+
+tbl_gender_balance <- flextable(df_gender_balance %>%
+                                  mutate(GENDER = gender_categories[GENDER])) %>% 
+  autofit() %>%
+  add_header_row(values = c("Gender", "P(Gender)", "Adjustment Factor\n(Orig/Calc)"),
+                 colwidths = c(1,2,1)) %>%
+  set_header_labels(GENDER = "Gender",
+                    P_ORIGINAL = "Constraint",
+                    P_0 = "Seed",
+                    ADJ_0 = "Adjustment Factor\n(Orig/Calc)") %>%
+  merge_v(part = "header") %>%
+  set_formatter(P_ORIGINAL = function(x){sprintf("%.4f", x)},
+                P_0 = function(x){sprintf("%.4f", x)},
+                ADJ_0 = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(1, 3))
+tbl_gender_balance
+```
+
+As with age we then adjust all the proportions in the seed table by the relevant adjustment factor, for example all the **female** categories will be multiplied by the adjustment factor **1.0455** which results in the following table.
+
+```{r}
+#| label: tbl-gender-adj
+#| tbl-cap: "Gender"
+#| echo: false
+#| warning: false
+
+df_seed_lo <- df_seed_lo %>% 
+  left_join(df_gender_balance %>% mutate(GENDER, ADJ_0_G = ADJ_0, .keep = "none"), by = c("GENDER")) %>%
+  mutate(P_0_G = P_0_A * ADJ_0_G)
+
+tbl_iter1 <- flextable(df_seed_lo %>% 
+                        mutate(AGE = age_categories[AGE],
+                               GENDER = gender_categories[GENDER],
+                               HEALTH = health_categories[HEALTH])) %>%
+  autofit() %>%
+  add_header_row(values = c("Age", "Gender", "Health", "Seed", "Iteration 1 (Age)", "Iteration 1 (Gender)"), colwidths = c(1, 1, 1, 1, 2, 2)) %>%
+  align(i = 1, j = c(5:8), align = "center", part = "header") %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    HEALTH = "Health",
+                    P_SEED = "Seed",
+                    ADJ_0_A = "Adjustment Factor",
+                    P_0_A = "P Adjusted",
+                    ADJ_0_G = "Adjustment Factor",
+                    P_0_G = "P Adjusted") %>%
+  set_formatter(P_SEED = function(x){sprintf("%.4f", x)},
+                ADJ_0_A = function(x){sprintf("%.4f", x)},
+                P_0_A = function(x){sprintf("%.4f", x)},
+                ADJ_0_G = function(x){sprintf("%.4f", x)},
+                P_0_G = function(x){sprintf("%.4f", x)}) %>%
+  merge_v(j = 1:4, part = "header") %>%
+  merge_v(j = 1:3) %>%
+  vline(j = c(3, 4, 6), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:17, border = fp_border(color = "grey80"))
+tbl_iter1
+```
+
+#### Health Constraint
+
+We now move on to balancing by the final constraint which is **health**. In the same process as before we calculate the current proportions by summing each of the **gender** combinations that we have just created by balancing for **age**. For example the **female** proportion is the sum of the **young, female, good health**, **young, female, fair health**, **young, female, poor health**, **adult, female, good health**, **adult, female, fair health**, **adult, female, poor health**, **elderly, female, good health**, **elderly, female, fair health**, and **elderly, female, poor health** proportions.
+
+----
+
+$$
+  \begin{aligned}
+    P(health) &= \sum_{age, gender}P(age, gender, health) \\
+    P(good) &= P(young, female, good) + P(young, male, good) + \\
+    &P(adult, female, good) + P(adult, male, good) \\
+    &P(elderly, female, good) + P(elderly, male, good) \\
+    P(good) &= 0.0487 + 0.0456 + \\
+    &0.1698 + 0.1478 + \\
+    &0.1809 + 0.1451 + \\
+    P(good) &= 0.7378 \\
+  \end{aligned}
+$$
+
+----
+
+```{r}
+#| label: tbl-low-level-geography-health-balance-step1
+#| tbl-cap: "Low Level Geography Health Balance (Step 1)"
+#| echo: false
+#| warning: false
+
+df_health_balance <- df_health %>% 
+  dplyr::filter(AREA == "[E00101824] - Fremington") %>%
+  pivot_longer(cols = 6:8, names_to = "HEALTH", values_to = "PCT") %>%
+  mutate(HEALTH = factor(gsub("PCT_", "", HEALTH), levels = c("GOOD", "FAIR", "POOR")),
+         P_ORIGINAL = PCT, .keep = "none") %>%
+  left_join(df_seed_lo %>% 
+              group_by(HEALTH) %>% 
+              summarise(P_0 = sum(P_0_G)) %>% 
+              ungroup(),
+            by = "HEALTH") %>%
+  mutate(ADJ_0 = P_ORIGINAL / P_0)
+
+tbl_health_balance <- flextable(df_health_balance %>%
+                                  mutate(HEALTH = health_categories[HEALTH])) %>% 
+  autofit() %>%
+  add_header_row(values = c("Health", "P(Health)", "Adjustment Factor\n(Orig/Calc)"),
+                 colwidths = c(1,2,1)) %>%
+  set_header_labels(HEALTH = "Health",
+                    P_ORIGINAL = "Constraint",
+                    P_0 = "Seed",
+                    ADJ_0 = "Adjustment Factor\n(Orig/Calc)") %>%
+  merge_v(part = "header") %>%
+  set_formatter(P_ORIGINAL = function(x){sprintf("%.4f", x)},
+                P_0 = function(x){sprintf("%.4f", x)},
+                ADJ_0 = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(1, 3))
+tbl_health_balance
+```
+
+As with gender we then adjust all the proportions in the seed table by the relevant adjustment factor, for example all the **good** categories will be multiplied by the adjustment factor **0.9223** which results in the following table.
+
+```{r}
+#| label: tbl-health-adj
+#| tbl-cap: "Health"
+#| echo: false
+#| warning: false
+
+df_seed_lo <- df_seed_lo %>% 
+  left_join(df_health_balance %>% mutate(HEALTH, ADJ_0_H = ADJ_0, .keep = "none"), by = c("HEALTH")) %>%
+  mutate(P_0_H = P_0_G * ADJ_0_H)
+
+tbl_iter1 <- flextable(df_seed_lo %>% 
+                        mutate(AGE = age_categories[AGE],
+                               GENDER = gender_categories[GENDER],
+                               HEALTH = health_categories[HEALTH])) %>%
+  autofit() %>%
+  add_header_row(values = c("Age", "Gender", "Health", "Seed", "Iteration 1 (Age)", "Iteration 1 (Gender)", "Iteration 1 (Health)"), colwidths = c(1, 1, 1, 1, 2, 2, 2)) %>%
+  align(i = 1, j = c(5:10), align = "center", part = "header") %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    HEALTH = "Health",
+                    P_SEED = "Seed",
+                    ADJ_0_A = "Adjustment Factor",
+                    P_0_A = "P Adjusted",
+                    ADJ_0_G = "Adjustment Factor",
+                    P_0_G = "P Adjusted",
+                    ADJ_0_H = "Adjustment Factor",
+                    P_0_H = "P Adjusted") %>%
+  set_formatter(P_SEED = function(x){sprintf("%.4f", x)},
+                ADJ_0_A = function(x){sprintf("%.4f", x)},
+                P_0_A = function(x){sprintf("%.4f", x)},
+                ADJ_0_G = function(x){sprintf("%.4f", x)},
+                P_0_G = function(x){sprintf("%.4f", x)},
+                ADJ_0_H = function(x){sprintf("%.4f", x)},
+                P_0_H = function(x){sprintf("%.4f", x)}) %>%
+  merge_v(j = 1:4, part = "header") %>%
+  merge_v(j = 1:3) %>%
+  vline(j = c(3, 4, 6, 8), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:17, border = fp_border(color = "grey80"))
+tbl_iter1
+```
+
+### Convergence 
+
+As before we will look at the difference between the desired value, the **low level geography marginal** and our balanced value after balancing for **age**, **gender** and **health**. 
+
+Firstly against the the **age** constraint
+
+```{r}
+#| label: tbl-low-level-geography-age-diff-iter1
+#| tbl-cap: "Low Level Geography Age Difference Iteration 1"
+#| echo: false
+#| warning: false
+
+df_age_diff <- df_age_balance %>% mutate(AGE, P_ORIG = P_ORIGINAL, .keep = "none") %>%
+  left_join(df_seed_lo %>% group_by(AGE) %>% summarise(P1 = sum(P_0_H), .groups = "keep") %>% ungroup(),
+            by = c("AGE")) %>%
+  mutate(ABS_DIFF_1 = abs(P_ORIG - P1)) %>% 
+  arrange(AGE)
+
+tbl_age_diff <- flextable(df_age_diff %>%
+                            mutate(AGE = age_categories[AGE])) %>%
+  autofit() %>%
+  add_header_row(values = c("Age", "Constraint" , "Iteration 1"), colwidths = c(1, 1, 2)) %>%
+  align(i = 1, j = 3:4, align = "center", part = "header") %>%
+  set_header_labels(AGE = "Age",
+                    P_ORIG = "P0",
+                    P1 = "P1",
+                    ABS_DIFF_1 = "Abs. Diff.") %>%
+  merge_v(j = 1:3, part = "header") %>%
+  merge_v(j = 1:2, part = "body") %>%
+  set_formatter(P_ORIG = function(x){sprintf("%.9f", x)},
+                P1 = function(x){sprintf("%.9f", x)},
+                ABS_DIFF_1 = function(x){sprintf("%.9f", x)}) %>%
+  vline(j = c(1, 2), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:3, border = fp_border(color = "grey80"))
+tbl_age_diff
+```
+
+Then against the the **gender** constraint
+
+```{r}
+#| label: tbl-low-level-geography-gender-diff-iter1
+#| tbl-cap: "Low Level Geography Gender Difference Iteration 1"
+#| echo: false
+#| warning: false
+
+df_gender_diff <- df_gender_balance %>% mutate(GENDER, P_ORIG = P_ORIGINAL, .keep = "none") %>%
+  left_join(df_seed_lo %>% group_by(GENDER) %>% summarise(P1 = sum(P_0_H), .groups = "keep") %>% ungroup(),
+            by = c("GENDER")) %>%
+  mutate(ABS_DIFF_1 = abs(P_ORIG - P1)) %>% 
+  arrange(GENDER)
+
+tbl_gender_diff <- flextable(df_gender_diff %>%
+                               mutate(GENDER = gender_categories[GENDER])) %>%
+  autofit() %>%
+  add_header_row(values = c("Gender", "Constraint" , "Iteration 1"), colwidths = c(1, 1, 2)) %>%
+  align(i = 1, j = 3:4, align = "center", part = "header") %>%
+  set_header_labels(GENDER = "Gender",
+                    P_ORIG = "P0",
+                    P1 = "P1",
+                    ABS_DIFF_1 = "Abs. Diff.") %>%
+  merge_v(j = 1:3, part = "header") %>%
+  merge_v(j = 1:2, part = "body") %>%
+  set_formatter(P_ORIG = function(x){sprintf("%.9f", x)},
+                P1 = function(x){sprintf("%.9f", x)},
+                ABS_DIFF_1 = function(x){sprintf("%.9f", x)}) %>%
+  vline(j = c(1, 2), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:2, border = fp_border(color = "grey80"))
+tbl_gender_diff
+```
+
+And finally against the **health** constraint
+
+```{r}
+#| label: tbl-low-level-geography-health-diff-iter1
+#| tbl-cap: "Low Level Geography Health Difference Iteration 1"
+#| echo: false
+#| warning: false
+
+df_health_diff <- df_health_balance %>% mutate(HEALTH, P_ORIG = P_ORIGINAL, .keep = "none") %>%
+  left_join(df_seed_lo %>% group_by(HEALTH) %>% summarise(P1 = sum(P_0_H), .groups = "keep") %>% ungroup(),
+            by = c("HEALTH")) %>%
+  mutate(ABS_DIFF_1 = abs(P_ORIG - P1)) %>% 
+  arrange(HEALTH)
+
+tbl_health_diff <- flextable(df_health_diff %>%
+                               mutate(HEALTH = health_categories[HEALTH])) %>%
+  autofit() %>%
+  add_header_row(values = c("Health", "Constraint" , "Iteration 1"), colwidths = c(1, 1, 2)) %>%
+  align(i = 1, j = 3:4, align = "center", part = "header") %>%
+  set_header_labels(HEALTH = "Health",
+                    P_ORIG = "P0",
+                    P1 = "P1",
+                    ABS_DIFF_1 = "Abs. Diff.") %>%
+  merge_v(j = 1:3, part = "header") %>%
+  merge_v(j = 1:2, part = "body") %>%
+  set_formatter(P_ORIG = function(x){sprintf("%.9f", x)},
+                P1 = function(x){sprintf("%.9f", x)},
+                ABS_DIFF_1 = function(x){sprintf("%.9f", x)}) %>%
+  vline(j = c(1, 2), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:2, border = fp_border(color = "grey80"))
+tbl_health_diff
+```
+
+As before from these three tables we can calculate the maximum error which is this instance is `r sprintf("%.9f", max(df_age_diff$ABS_DIFF_1, df_gender_diff$ABS_DIFF_1, df_health_diff$ABS_DIFF_1))`
+
+We will iterate through two more times to see the effect on the difference.
+
+```{r}
+#| label: convergence-iter2-lo
+#| echo: false
+#| warning: false
+
+# Balance for Age
+df_age_balance <- df_age_balance %>% 
+  left_join(
+    df_seed_lo %>% 
+      group_by(AGE) %>% 
+      summarise(P_1 = sum(P_0_H), .groups = "keep") %>% 
+      ungroup(),
+    by = c("AGE")) %>%
+  mutate(ADJ_1 = P_ORIGINAL / P_1)
+
+df_seed_lo <- df_seed_lo %>% 
+  left_join(df_age_balance %>% 
+              mutate(AGE, ADJ_1_A = ADJ_1, .keep = "none"),
+            by = c("AGE")) %>%
+  mutate(P_1_A = P_0_H * ADJ_1_A)
+
+# Balance for Gender
+df_gender_balance <- df_gender_balance %>% 
+  left_join(
+    df_seed_lo %>% 
+      group_by(GENDER) %>% 
+      summarise(P_1 = sum(P_1_A), .groups = "keep") %>% 
+      ungroup(),
+    by = c("GENDER")) %>%
+  mutate(ADJ_1 = P_ORIGINAL / P_1)
+
+df_seed_lo <- df_seed_lo %>% 
+  left_join(df_gender_balance %>% 
+              mutate(GENDER, ADJ_1_G = ADJ_1, .keep = "none"),
+            by = c("GENDER")) %>%
+  mutate(P_1_G = P_1_A * ADJ_1_G)
+
+# Balance for Health
+df_health_balance <- df_health_balance %>% 
+  left_join(
+    df_seed_lo %>% 
+      group_by(HEALTH) %>% 
+      summarise(P_1 = sum(P_1_G), .groups = "keep") %>% 
+      ungroup(),
+    by = c("HEALTH")) %>%
+  mutate(ADJ_1 = P_ORIGINAL / P_1)
+
+df_seed_lo <- df_seed_lo %>% 
+  left_join(df_health_balance %>% 
+              mutate(HEALTH, ADJ_1_H = ADJ_1, .keep = "none"),
+            by = c("HEALTH")) %>%
+  mutate(P_1_H = P_1_G * ADJ_1_H)
+
+# Check convergence
+df_age_diff <- df_age_diff %>% 
+  left_join(df_seed_lo %>%
+              group_by(AGE) %>%
+              summarise(P2 = sum(P_1_H), .groups = "keep") %>%
+              ungroup(),
+            by = c("AGE")) %>%
+  mutate(ABS_DIFF_2 = abs(P_ORIG - P2)) %>%
+  arrange(AGE)
+
+df_gender_diff <- df_gender_diff %>% 
+  left_join(df_seed_lo %>%
+              group_by(GENDER) %>%
+              summarise(P2 = sum(P_1_H), .groups = "keep") %>%
+              ungroup(),
+            by = c("GENDER")) %>%
+  mutate(ABS_DIFF_2 = abs(P_ORIG - P2)) %>%
+  arrange(GENDER)
+                
+df_health_diff <- df_health_diff %>% 
+  left_join(df_seed_lo %>%
+              group_by(HEALTH) %>%
+              summarise(P2 = sum(P_1_H), .groups = "keep") %>%
+              ungroup(),
+            by = c("HEALTH")) %>%
+  mutate(ABS_DIFF_2 = abs(P_ORIG - P2)) %>%
+  arrange(HEALTH)
+```
+
+```{r}
+#| label: convergence-iter3-lo
+#| echo: false
+#| warning: false
+
+# Balance for Age
+df_age_balance <- df_age_balance %>% 
+  left_join(
+    df_seed_lo %>% 
+      group_by(AGE) %>% 
+      summarise(P_2 = sum(P_1_H), .groups = "keep") %>% 
+      ungroup(),
+    by = c("AGE")) %>%
+  mutate(ADJ_2 = P_ORIGINAL / P_2)
+
+df_seed_lo <- df_seed_lo %>% 
+  left_join(df_age_balance %>% 
+              mutate(AGE, ADJ_2_A = ADJ_2, .keep = "none"),
+            by = c("AGE")) %>%
+  mutate(P_2_A = P_1_H * ADJ_2_A)
+
+# Balance for Gender
+df_gender_balance <- df_gender_balance %>% 
+  left_join(
+    df_seed_lo %>% 
+      group_by(GENDER) %>% 
+      summarise(P_2 = sum(P_2_A), .groups = "keep") %>% 
+      ungroup(),
+    by = c("GENDER")) %>%
+  mutate(ADJ_2 = P_ORIGINAL / P_2)
+
+df_seed_lo <- df_seed_lo %>% 
+  left_join(df_gender_balance %>% 
+              mutate(GENDER, ADJ_2_G = ADJ_2, .keep = "none"),
+            by = c("GENDER")) %>%
+  mutate(P_2_G = P_2_A * ADJ_2_G)
+
+# Balance for Health
+df_health_balance <- df_health_balance %>% 
+  left_join(
+    df_seed_lo %>% 
+      group_by(HEALTH) %>% 
+      summarise(P_2 = sum(P_2_G), .groups = "keep") %>% 
+      ungroup(),
+    by = c("HEALTH")) %>%
+  mutate(ADJ_2 = P_ORIGINAL / P_2)
+
+df_seed_lo <- df_seed_lo %>% 
+  left_join(df_health_balance %>% 
+              mutate(HEALTH, ADJ_2_H = ADJ_2, .keep = "none"),
+            by = c("HEALTH")) %>%
+  mutate(P_2_H = P_2_G * ADJ_2_H)
+
+# Check convergence
+df_age_diff <- df_age_diff %>% 
+  left_join(df_seed_lo %>%
+              group_by(AGE) %>%
+              summarise(P3 = sum(P_2_H), .groups = "keep") %>%
+              ungroup(),
+            by = c("AGE")) %>%
+  mutate(ABS_DIFF_3 = abs(P_ORIG - P3)) %>%
+  arrange(AGE)
+
+df_gender_diff <- df_gender_diff %>% 
+  left_join(df_seed_lo %>%
+              group_by(GENDER) %>%
+              summarise(P3 = sum(P_2_H), .groups = "keep") %>%
+              ungroup(),
+            by = c("GENDER")) %>%
+  mutate(ABS_DIFF_3 = abs(P_ORIG - P3)) %>%
+  arrange(GENDER)
+                
+df_health_diff <- df_health_diff %>% 
+  left_join(df_seed_lo %>%
+              group_by(HEALTH) %>%
+              summarise(P3 = sum(P_2_H), .groups = "keep") %>%
+              ungroup(),
+            by = c("HEALTH")) %>%
+  mutate(ABS_DIFF_3 = abs(P_ORIG - P3)) %>%
+  arrange(HEALTH)
+```
+
+So overall across the three constraints the maximum error after the first iteration was `r sprintf("%.9f", max(c(df_age_diff$ABS_DIFF_1, df_gender_diff$ABS_DIFF_1, df_health_diff$ABS_DIFF_1)))` and after the second iteration it was `r sprintf("%.9f", max(c(df_age_diff$ABS_DIFF_2, df_gender_diff$ABS_DIFF_2, df_health_diff$ABS_DIFF_2)))` and after the third iteration it was `r sprintf("%.9f", max(c(df_age_diff$ABS_DIFF_3, df_gender_diff$ABS_DIFF_3, df_health_diff$ABS_DIFF_3)))`
+
+
+## Using mipfp package
+
+```{r}
+#| label: using-mipfp
+#| echo: false
+#| warning: false
+
+library(mipfp)
+
+# Change dataframe to a matrix
+seed <- xtabs(
+  P_SEED ~ AGE + GENDER + HEALTH,
+  data = df_seed
+)
+
+target_age_gender <- df_age_gender %>%
+  select(AGE, GENDER, PCT) %>%
+  tidyr::pivot_wider(
+    names_from = GENDER,
+    values_from = PCT
+  ) %>%
+  tibble::column_to_rownames("AGE") %>%
+  as.matrix()
+
+target_age_health <- df_age_health %>%
+  select(AGE, HEALTH, PCT) %>%
+  tidyr::pivot_wider(
+    names_from = HEALTH,
+    values_from = PCT
+  ) %>%
+  tibble::column_to_rownames("AGE") %>%
+  as.matrix()
+
+target_gender_health <- df_gender_health %>%
+  select(GENDER, HEALTH, PCT) %>%
+  tidyr::pivot_wider(
+    names_from = HEALTH,
+    values_from = PCT
+  ) %>%
+  tibble::column_to_rownames("GENDER") %>%
+  as.matrix()
+
+target_list <- list(
+  c(1, 2),  # Age × Gender
+  c(1, 3),  # Age × Health
+  c(2, 3)   # Gender × Health
+)
+
+target_data <- list(
+  target_age_gender,
+  target_age_health,
+  target_gender_health
+)
+
+# ipf_high <- mipfp::Ipfp(
+#   seed = seed,
+#   target.list = target_list,
+#   target.data = target_data,
+#   print = TRUE,
+#   iter = 1000,
+#   tol = 1e-10,
+#   tol.margins = 1e-10
+# )
+
+ipf_high <- mipfp::Ipfp(
+  seed = seed,
+  target.list = target_list,
+  target.data = target_data,
+  print = TRUE,
+  iter = 3
+)
+
+ipf_high
+
+df_seed %>% head()
+```
