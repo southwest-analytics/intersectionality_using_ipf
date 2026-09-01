@@ -1,5 +1,4 @@
 ---
-<<<<<<< HEAD
 title: "Intersectionality using Iterative Proportional Fitting on 2021 UK Census Data"
 author: "Richard Blackwell"
 date: 2026-08-07
@@ -17,13 +16,44 @@ format:
       body-width: 1600px
       margin-width: 50px
       gutter-width: 1.5rem
-=======
-title: "Intersectionality using Iterative Proportional Fitting of 2021 UK Census Data"
-author: "Richard Blackwell"
-format: html
-editor: visual
->>>>>>> 2da3d9fbd26f11c30322a8fd54f58c56dcc63303
 ---
+
+### Marginal Data 2021 UK Census
+
+The following list outlines the inclusion domains and underlying marginal variables from the 2021 UK Census and the number of categories for the domain or variable.
+
+-   Communication (31)
+    -   Age (8)
+    -   Highest Level of Qualification (7)
+    -   Main Language (11)
+    -   Proficiency in English Language (5)
+-   Employment Status (32)
+    -   Highest Level of Qualification (7)
+    -   NS-SeC (10)
+    -   Occupation (current) (10)
+    -   Tenure of Household (5)
+-   Physical and Practical Access (18)
+    -   Age (8)
+    -   Car Availability (3)
+    -   Disability (3)
+    -   General Health (4)
+-   Social and Community Connectedness (28)
+    -   Car Availability (3)
+    -   Ethnicity (6)
+    -   Household Composition (8)
+    -   Length of Residence in UK (6)
+    -   Religion (5)
+-   Structural Inclusion (23)
+    -   Age (8)
+    -   Disability (3)
+    -   Ethnicity (6)
+    -   General Health (4)
+    -   Sex (2)
+-   Timing and Caring Commitments (29)
+    -   Economic Activity Status (10)
+    -   Household Composition (8)
+    -   Household Type (6)
+    -   Unpaid Care (5)
 
 ```{r}
 #| label: init
@@ -33,7 +63,6 @@ editor: visual
 library(tidyverse)
 library(flextable)
 library(officer)
-<<<<<<< HEAD
 ```
 
 ## Iterative Proportional Fitting - A simple worked example
@@ -482,191 +511,4 @@ The following list outlines the inclusion domains and underlying marginal variab
     -   Household Composition (8)
     -   Household Type (6)
     -   Unpaid Care (5)
-=======
 
-```
-
-## Worked Example
-
-### Marginals
-
-```{r}
-#| label: marginal_popn
-#| echo: false
-#| warning: false
-
-df_popn <- data.frame(area = c("A","B","C"),
-                      popn = c(293, 222, 172))
-
-flextable(df_popn) %>%
-  autofit() %>%
-  set_header_labels(area = "Area", popn = "Popn") %>%
-  vline(j = 1, border = fp_border(width = 2))
-```
-
-```{r}
-#| label: marginal_age
-#| echo: false
-#| warning: false
-
-df_age <- data.frame(age = rep(c("Young", "Adult", "Elderly"), 3),
-                     area = c(rep("A", 3), rep("B", 3), rep("C", 3)),
-                     popn = c(c(90, 133, 70), c(62, 107, 53), c(45, 83, 44)))
-df_age <- df_age %>% group_by(area) %>% mutate(pct = popn/sum(popn)) %>% ungroup() %>% select(-popn)
-
-flextable(df_age %>% pivot_wider(names_from = "area", values_from = "pct")) %>%
-  autofit() %>%
-  align(j = 2:4, align = "center", part = "header") %>%
-  add_header_row(values = c("Age", "Area"), colwidths = c(1, 3)) %>%
-  set_header_labels(age = "Age") %>%
-  merge_at(i = 1:2, j = 1, part = "header") %>%
-  vline(j = 1, border = fp_border(width = 2)) %>%
-  colformat_double(j = 1:length(unique(df_age$area))+1, digits=3)
-```
-
-```{r}
-#| label: marginal_gender
-#| echo: false
-#| warning: false
-
-df_gender <- data.frame(gender = rep(c("Female", "Male"), 3),
-                        area = c(rep("A", 2), rep("B", 2), rep("C", 2)),
-                        popn = c(c(153, 140), c(116, 106), c(90, 82)))
-
-df_gender <- df_gender %>% group_by(area) %>% mutate(pct = popn/sum(popn)) %>% ungroup() %>% select(-popn)
-
-flextable(df_gender %>% pivot_wider(names_from = "area", values_from = "pct")) %>%
-  autofit() %>%
-  align(j = 2:4, align = "center", part = "header") %>%
-  add_header_row(values = c("Gender", "Area"), colwidths = c(1, 3)) %>%
-  set_header_labels(age = "Gender") %>%
-  merge_at(i = 1:2, j = 1, part = "header") %>%
-  vline(j = 1, border = fp_border(width = 2)) %>%
-  colformat_double(j = 1:length(unique(df_gender$area))+1, digits=3)
-```
-
-```{r}
-#| label: marginal_health
-#| echo: false
-#| warning: false
-
-df_health <- data.frame(health = rep(c("Good", "Fair", "Poor"), 3),
-                        area = c(rep("A", 3), rep("B", 3), rep("C", 3)),
-                        popn = c(c(168, 82, 43), c(127, 63, 32), c(96, 51, 25)))
-
-df_health <- df_health %>% group_by(area) %>% mutate(pct = popn/sum(popn)) %>% ungroup() %>% select(-popn)
-
-flextable(df_health %>% pivot_wider(names_from = "area", values_from = "pct")) %>%
-  autofit() %>%
-  align(j = 2:4, align = "center", part = "header") %>%
-  add_header_row(values = c("Health", "Area"), colwidths = c(1, 3)) %>%
-  set_header_labels(age = "Health") %>%
-  merge_at(i = 1:2, j = 1, part = "header") %>%
-  vline(j = 1, border = fp_border(width = 2)) %>%
-  colformat_double(j = 1:length(unique(df_health$area))+1, digits=3)
-```
-
-### Constraints
-
-```{r}
-#| label: constraint_age_gender
-#| echo: false
-#| warning: false
-
-df_age_gender <- data.frame(age = rep(c("Young", "Adult", "Elderly"), 2),
-                            gender = c(rep("Female", 3), rep("Male", 3)),
-                            popn = c(c(103, 163, 93), c(94, 160, 74)))
-df_age_gender <- df_age_gender %>% mutate(pct = popn/sum(popn)) %>% select(-popn)
-```
-
-```{r}
-#| label: constraint_age_health
-#| echo: false
-#| warning: false
-
-df_age_health <- data.frame(age = rep(c("Young", "Adult", "Elderly"), 3),
-                            health = c(rep("Good", 3), rep("Fair", 3), rep("Poor", 3)),
-                            popn = c(c(120, 187, 84), c(48, 94, 54), c(29, 42, 29)))
-df_age_health <- df_age_health %>% mutate(pct = popn/sum(popn)) %>% select(-popn)
-```
-
-```{r}
-#| label: constraint_gender_health
-#| echo: false
-#| warning: false
-
-df_gender_health <- data.frame(gender = rep(c("Female", "Male"), 3),
-                               health = c(rep("Good", 2), rep("Fair", 2), rep("Poor", 2)),
-                               popn = c(c(197, 194), c(104, 92), c(58, 42)))
-df_gender_health <- df_gender_health %>% mutate(pct = popn/sum(popn)) %>% select(-popn)
-```
-
-### Seed Table
-
-The starting seed table $X^{(0)}$ is given by the combined independent probability multiplied by the population to return the initial estimate of people with the combined values.
-
-For example the seed estimate $X^{(0)}_{a,g,h}$ for young, male in good health is given by $$ \begin{align} X^{(0)}_{Y,M,G} &= P(Y)\times{P(M)}\times{P(G)} \\ &= 0.307\times{0.478}\times{0.573} \\ &= 0.084 \end{align} $$
-
-Each cell of the seed table is calculated in the same manner to cover the $ age\times{gender}\times{health} = 3\times{2}\times{3} = 18 $ combinations resulting in the seed table as follows
-
-```{r}
-#| label: seed_table
-#| echo: false
-#| warning: false
-
-area_list <- unique(df_age$area)
-age_list <- unique(df_age$age)
-gender_list <- unique(df_gender$gender)
-health_list <- unique(df_health$health)
-
-df_seed_table <- data.frame(area = as.character(),
-                            age = as.character(),
-                            gender = as.character(),
-                            health = as.character(),
-                            pct = as.numeric())
-
-# seed_table <- array(dim = c(length(area_list), 
-#               length(age_list),
-#               length(gender_list),
-#               length(health_list)),
-#               dimnames = list(area_list, age_list, gender_list, health_list))
-
-for(area in area_list){
-  for(age in age_list){
-    for(gender in gender_list){
-      for(health in health_list){
-        pct <- df_age$pct[df_age$area==area & df_age$age==age] *
-          df_gender$pct[df_gender$area==area & df_gender$gender==gender] *
-          df_health$pct[df_health$area==area & df_health$health==health]
-        df_seed_table <- df_seed_table %>% bind_rows(data.frame(area, age, gender, health, pct))
-      }
-    }
-  }
-}
-
-flextable(df_seed_table) %>%
-  set_header_labels(area = "Area",
-                    age = "Age",
-                    gender = "Gender",
-                    health = "Health",
-                    pct = "Proportion") %>%
-  bold(i = 1, part = "header") %>%
-  border_inner(border = fp_border(width = 1)) %>%
-  merge_v() %>%
-  set_formatter(pct = function(x){sprintf("%.3f", x)})
-```
-
-### Create calculated constraints
-
-```{r} 
-#| label: calculated_constraint_age_gender
-#| echo: false
-#| warning: false
-
-df_seed_table %>%
-  group_by(age, gender) %>% 
-  summarise(pct = sum(pct), .groups = "keep")
-
-sum(df_seed_table$pct)
-```
->>>>>>> 2da3d9fbd26f11c30322a8fd54f58c56dcc63303
