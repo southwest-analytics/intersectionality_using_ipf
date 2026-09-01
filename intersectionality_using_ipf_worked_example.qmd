@@ -39,6 +39,26 @@ We will use 3 pairwise constraints; **age and gender**, **age and health**, and 
 
 ### Marginals
 
+#### Population
+```{r}
+#| label: tbl-popn
+#| tbl-cap: "Population"
+#| echo: false
+#| warning: false
+
+df_popn <- readxl::read_xlsx(path = "worked_example/data/marginals.xlsx",
+                             sheet = "AGE") %>% 
+  mutate(AREA = sprintf("[%s] - %s", OA21CD, OA21NM)) %>%
+  select(AREA, TOTAL)
+
+tbl_popn <- flextable(df_popn) %>%
+  autofit() %>%
+  set_header_labels(AREA = "Area",
+                    TOTAL = "Poulation") %>%
+  vline(j = c(1), part = "all")
+tbl_popn
+```
+
 #### Age
 
 The age marginal is given as 3 categories, young (0-14yrs), adult (16-64yrs), elderly (65+yrs) and the table below shows the age marginal for the 4 census output areas.
@@ -52,9 +72,11 @@ The age marginal is given as 3 categories, young (0-14yrs), adult (16-64yrs), el
 df_age <- readxl::read_xlsx(path = "worked_example/data/marginals.xlsx",
                             sheet = "AGE") %>% 
   mutate(AREA = sprintf("[%s] - %s", OA21CD, OA21NM), 
-         PCT_YOUNG = YOUNG/TOTAL, PCT_ADULT = ADULT/TOTAL, PCT_ELDERLY  = ELDERLY/TOTAL) %>%
+         PCT_YOUNG = YOUNG/TOTAL, 
+         PCT_ADULT = ADULT/TOTAL, 
+         PCT_ELDERLY  = ELDERLY/TOTAL) %>%
   select(AREA, 
-         YOUNG, ADULT, ELDERLY, TOTAL,
+         YOUNG, ADULT, ELDERLY, TOTAL, 
          PCT_YOUNG, PCT_ADULT, PCT_ELDERLY)
 
 tbl_age <- flextable(df_age) %>%
@@ -75,6 +97,13 @@ tbl_age <- flextable(df_age) %>%
                 PCT_ELDERLY = function(x){sprintf("%.4f", x)}) %>%
   vline(j = c(1, 4, 5), part = "all")
 tbl_age
+
+df_age <- df_age %>%
+  pivot_longer(cols = 6:8, names_to = "AGE", values_to = "P") %>%
+  mutate(AREA, 
+         AGE = factor(gsub("PCT_", "", AGE), levels = c("YOUNG", "ADULT", "ELDERLY")), 
+         P, 
+         .keep = "none")
 ```  
 
 #### Gender
@@ -110,6 +139,14 @@ tbl_gender <- flextable(df_gender) %>%
                 PCT_MALE = function(x){sprintf("%.4f", x)}) %>%
   vline(j = c(1, 3, 4), part = "all")
 tbl_gender
+
+df_gender <- df_gender %>%
+  pivot_longer(cols = 5:6, names_to = "GENDER", values_to = "P") %>%
+  mutate(AREA, 
+         GENDER = factor(gsub("PCT_", "", GENDER), levels = c("FEMALE", "MALE")), 
+         P, 
+         .keep = "none")
+
 ```
 
 #### Health
@@ -148,6 +185,13 @@ tbl_health <- flextable(df_health) %>%
                 PCT_POOR = function(x){sprintf("%.4f", x)}) %>%
   vline(j = c(1, 4, 5), part = "all")
 tbl_health
+
+df_health <- df_health %>%
+  pivot_longer(cols = 6:8, names_to = "HEALTH", values_to = "P") %>%
+  mutate(AREA, 
+         HEALTH = factor(gsub("PCT_", "", HEALTH), levels = c("GOOD", "FAIR", "POOR")), 
+         P, 
+         .keep = "none")
 ```
 
 ### Constraints
@@ -1207,9 +1251,7 @@ df_seed_lo <- df_seed %>% mutate(AGE, GENDER, HEALTH, P_SEED = P_2_GH, .keep = "
 
 df_age_balance <- df_age %>% 
   dplyr::filter(AREA == "[E00101824] - Fremington") %>%
-  pivot_longer(cols = 6:8, names_to = "AGE", values_to = "PCT") %>%
-  mutate(AGE = factor(gsub("PCT_", "", AGE), levels = c("YOUNG", "ADULT", "ELDERLY")),
-         P_ORIGINAL = PCT, .keep = "none") %>%
+  mutate(AGE, P_ORIGINAL = P, .keep = "none") %>%
   left_join(df_seed_lo %>% 
               group_by(AGE) %>% 
               summarise(P_0 = sum(P_SEED)) %>% 
@@ -1298,9 +1340,7 @@ $$
 
 df_gender_balance <- df_gender %>% 
   dplyr::filter(AREA == "[E00101824] - Fremington") %>%
-  pivot_longer(cols = 5:6, names_to = "GENDER", values_to = "PCT") %>%
-  mutate(GENDER = factor(gsub("PCT_", "", GENDER), levels = c("FEMALE", "MALE")),
-         P_ORIGINAL = PCT, .keep = "none") %>%
+  mutate(GENDER, P_ORIGINAL = P, .keep = "none") %>%
   left_join(df_seed_lo %>% 
               group_by(GENDER) %>% 
               summarise(P_0 = sum(P_0_A)) %>% 
@@ -1393,9 +1433,7 @@ $$
 
 df_health_balance <- df_health %>% 
   dplyr::filter(AREA == "[E00101824] - Fremington") %>%
-  pivot_longer(cols = 6:8, names_to = "HEALTH", values_to = "PCT") %>%
-  mutate(HEALTH = factor(gsub("PCT_", "", HEALTH), levels = c("GOOD", "FAIR", "POOR")),
-         P_ORIGINAL = PCT, .keep = "none") %>%
+  mutate(HEALTH, P_ORIGINAL = P, .keep = "none") %>%
   left_join(df_seed_lo %>% 
               group_by(HEALTH) %>% 
               summarise(P_0 = sum(P_0_G)) %>% 
@@ -1739,12 +1777,15 @@ So overall across the three constraints the maximum error after the first iterat
 
 ## Using mipfp package
 
+The follow section shows the usage of the mipfp package to process the full IPF using the data we have walked through.
+
 ```{r}
 #| label: using-mipfp
-#| echo: false
-#| warning: false
+#| echo: true
 
 library(mipfp)
+
+# Balance the high level geography by the 3 pairwise contraints
 
 # Change dataframe to a matrix
 seed <- xtabs(
@@ -1752,6 +1793,7 @@ seed <- xtabs(
   data = df_seed
 )
 
+# Create target matrices for the constraints
 target_age_gender <- df_age_gender %>%
   select(AGE, GENDER, PCT) %>%
   tidyr::pivot_wider(
@@ -1791,25 +1833,165 @@ target_data <- list(
   target_gender_health
 )
 
-# ipf_high <- mipfp::Ipfp(
-#   seed = seed,
-#   target.list = target_list,
-#   target.data = target_data,
-#   print = TRUE,
-#   iter = 1000,
-#   tol = 1e-10,
-#   tol.margins = 1e-10
-# )
-
+# Run the ipf for the high level geogrpahy
 ipf_high <- mipfp::Ipfp(
   seed = seed,
   target.list = target_list,
   target.data = target_data,
   print = TRUE,
-  iter = 3
+  iter = 1000,
+  tol = 1e-10,
+  tol.margins = 1e-10
 )
 
-ipf_high
+# Step through the low level geographies and balance to marginals
+areas <- unique(df_age$AREA)
 
-df_seed %>% head()
+fnProcessArea <- function(area){
+  age <- df_age %>% dplyr::filter(AREA == area) %>% .$P
+  gender <- df_gender %>% dplyr::filter(AREA == area) %>% .$P
+  health <- df_health %>% dplyr::filter(AREA == area) %>% .$P
+
+  ipf <- mipfp::Ipfp(
+    seed = ipf_high$p.hat,
+    target.list = list(1, 2, 3),
+    target.data = list(age, gender, health),
+    iter = 1000,
+    tol = 1e-10,
+    tol.margins = 1e-10
+  )
+
+  df <- ipf$p.hat %>% 
+    as.data.frame() %>% 
+    mutate(AREA = area, AGE, GENDER, HEALTH, P = Freq, .keep = "none") %>%
+    select(AREA, AGE, GENDER, HEALTH, P)
+  
+  return(df)
+}
+
+# Create and output the final balanced tables
+
+df_local_popn <- do.call("rbind", lapply(areas, fnProcessArea))
+
+df_local_popn <- df_local_popn %>% 
+  left_join(df_popn %>% mutate(AREA, POPN = TOTAL, .keep = "none"), by = "AREA") %>%
+  mutate(N = P*POPN) %>%
+  arrange(AREA, AGE, GENDER, HEALTH)
+
+write.csv(df_local_popn, "ipf_output.csv")
+```
+### [E00101824] - Fremington
+
+```{r}
+#| label: tbl-output-fremington
+#| tbl-cap: "Output for [E00101824] - Fremington"
+#| echo: false
+#| warning: false
+
+tbl_output <- flextable(df_local_popn %>% 
+            dplyr::filter(AREA == "[E00101824] - Fremington") %>%
+            mutate(AGE = age_categories[AGE],
+                   GENDER = gender_categories[GENDER], 
+                   HEALTH = health_categories[HEALTH]) %>%
+            select(AGE, GENDER, HEALTH, N, POPN, P)
+          ) %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    HEALTH = "Health",
+                    N = "n",
+                    POPN = "Total Popn.",
+                    P = "Proportion") %>%
+  merge_v(j = 1:3, part = "body") %>%
+  set_formatter(N = function(x){sprintf("%.1f", x)},
+                P = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(3, 5), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:17, border = fp_border(color = "grey80"))
+tbl_output
+```
+
+### [E00101827] - Croyde
+
+```{r}
+#| label: tbl-output-croyde
+#| tbl-cap: "Output for [E00101827] - Croyde"
+#| echo: false
+#| warning: false
+
+tbl_output <- flextable(df_local_popn %>% 
+            dplyr::filter(AREA == "[E00101827] - Croyde") %>%
+            mutate(AGE = age_categories[AGE],
+                   GENDER = gender_categories[GENDER], 
+                   HEALTH = health_categories[HEALTH]) %>%
+            select(AGE, GENDER, HEALTH, N, POPN, P)
+          ) %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    HEALTH = "Health",
+                    N = "n",
+                    POPN = "Total Popn.",
+                    P = "Proportion") %>%
+  merge_v(j = 1:3, part = "body") %>%
+  set_formatter(N = function(x){sprintf("%.1f", x)},
+                P = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(3, 5), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:17, border = fp_border(color = "grey80"))
+tbl_output
+```
+
+### [E00180270] - Lankey
+
+```{r}
+#| label: tbl-output-lankey
+#| tbl-cap: "Output for [E00180270] - Lankey"
+#| echo: false
+#| warning: false
+
+tbl_output <- flextable(df_local_popn %>% 
+            dplyr::filter(AREA == "[E00180270] - Lankey") %>%
+            mutate(AGE = age_categories[AGE],
+                   GENDER = gender_categories[GENDER], 
+                   HEALTH = health_categories[HEALTH]) %>%
+            select(AGE, GENDER, HEALTH, N, POPN, P)
+          ) %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    HEALTH = "Health",
+                    N = "n",
+                    POPN = "Total Popn.",
+                    P = "Proportion") %>%
+  merge_v(j = 1:3, part = "body") %>%
+  set_formatter(N = function(x){sprintf("%.1f", x)},
+                P = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(3, 5), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:17, border = fp_border(color = "grey80"))
+tbl_output
+```
+
+### [E00165923] - Forches Avenue
+
+```{r}
+#| label: tbl-output-forches
+#| tbl-cap: "Output for [E00165923] - Forches Avenue"
+#| echo: false
+#| warning: false
+
+tbl_output <- flextable(df_local_popn %>% 
+            dplyr::filter(AREA == "[E00165923] - Forches Avenue") %>%
+            mutate(AGE = age_categories[AGE],
+                   GENDER = gender_categories[GENDER], 
+                   HEALTH = health_categories[HEALTH]) %>%
+            select(AGE, GENDER, HEALTH, N, POPN, P)
+          ) %>%
+  set_header_labels(AGE = "Age",
+                    GENDER = "Gender",
+                    HEALTH = "Health",
+                    N = "n",
+                    POPN = "Total Popn.",
+                    P = "Proportion") %>%
+  merge_v(j = 1:3, part = "body") %>%
+  set_formatter(N = function(x){sprintf("%.1f", x)},
+                P = function(x){sprintf("%.4f", x)}) %>%
+  vline(j = c(3, 5), border = fp_border(color = "grey80")) %>%
+  hline(i = 1:17, border = fp_border(color = "grey80"))
+tbl_output
 ```
