@@ -129,11 +129,11 @@ fnProcessConstraint <- function(filename, vars){
 # • 1.0. Low Level to High Level Geography Lookups and Units Translations ----
 # ────────────────────────────────────────────────────────────────────────────
 
-df_area_lu <- read.csv("data/OA21_LSOA21_MSOA21_LAD22_LU.csv") %>% 
+df_area_lu <- read.csv("data/lookups/OA21_LSOA21_MSOA21_LAD22_LU.csv") %>% 
   # English output areas only
   filter(grepl("^E", OA21CD)) %>%
   select(-c(LSOA21NMW, MSOA21NMW, LAD22NMW, ObjectId)) %>% 
-  left_join(read.csv("data/OA21_RGN22_LU.csv") %>% 
+  left_join(read.csv("data/lookups/OA21_RGN22_LU.csv") %>% 
               select(1:3) %>% 
               rename_with(.fn = ~c("OA21CD", "RGN22CD", "RGN22NM")),
             by = "OA21CD")
@@ -364,70 +364,426 @@ df_tenure <- df_tenure %>%
 # • 2.2. Convert constraints into MSOA level and deal with missing MSOAs ----
 # ───────────────────────────────────────────────────────────────────────────
 
-df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(MSOA21CD) %>% NROW()
-df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(RGN22CD) %>% NROW()
+# • • 2.2.1. Domain 1: Communication ----
 
-df_age_main_lang_rgn %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
-df_main_lang_english_prof_rgn %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
-df_main_lang_quals_rgn %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# ROW COUNTS
+# df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(MSOA21CD) %>% NROW()
+# df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(RGN22CD) %>% NROW()
+# df_age_english_prof_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_age_quals_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_age_main_lang_rgn %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_main_lang_english_prof_rgn %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_main_lang_quals_rgn %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_english_prof_quals_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
 
-df_age_english_prof_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
-df_age_quals_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# These constraints are already at MSOA level and cover all areas without any 
+# data suppression so only need to convert into proportions
+df_age_english_prof_msoa <- df_age_english_prof_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_age_quals_msoa <- df_age_quals_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
 
-df_missing <- df_english_prof_quals_msoa %>% 
+# Convert regions into MSOAs
+df_age_main_lang_msoa <- df_age_main_lang_rgn %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS) %>%
+  left_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, RGN22CD), by = c("AREA_CODE" = "RGN22CD"), relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, AGE_CODE, AGE_DESC, MAIN_LANG_CODE, MAIN_LANG_DESC, P)
+
+df_main_lang_english_prof_msoa <- df_main_lang_english_prof_rgn %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS) %>%
+  left_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, RGN22CD), by = c("AREA_CODE" = "RGN22CD"), relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>% 
+  select(AREA_CODE, AREA_DESC, MAIN_LANG_CODE, MAIN_LANG_DESC, ENGLISH_PROF_CODE, ENGLISH_PROF_DESC, P)
+
+df_main_lang_quals_msoa <- df_main_lang_quals_rgn %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS) %>%
+  left_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, RGN22CD), by = c("AREA_CODE" = "RGN22CD"), relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>% 
+  select(AREA_CODE, AREA_DESC, MAIN_LANG_CODE, MAIN_LANG_DESC, QUALS_CODE, QUALS_DESC, P)
+
+# Data suppression rules have resulted in 46 MSOAs having been removed, we will replace with the next level (LAD) value
+df_english_prof_quals_msoa <- df_english_prof_quals_msoa %>%
+  # Add in LAD code
   left_join(df_area_lu %>% distinct(MSOA21CD, LAD22CD), by = c("AREA_CODE" = "MSOA21CD")) %>% 
+  # Group by LAD and summarise
   group_by(LAD22CD, ENGLISH_PROF_CODE, ENGLISH_PROF_DESC, QUALS_CODE, QUALS_DESC) %>%
-  summarise(OBS = sum(OBS), .groups = "keep") %>% 
+  summarise(OBS = sum(OBS), .groups = "keep") %>%
   ungroup() %>%
+  # Calculate LAD proportions
   group_by(LAD22CD) %>%
-  mutate(PCT = OBS / sum(OBS)) %>%
-  ungroup() %>% 
+  mutate(P = OBS/sum(OBS)) %>%
+  ungroup() %>%
   select(-OBS) %>%
-  inner_join(
-    df_area_lu %>% distinct(MSOA21CD, LAD22CD) %>% dplyr::filter(grepl("^E", MSOA21CD)) %>%
-      anti_join(df_english_prof_quals_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE), by = c("MSOA21CD" = "AREA_CODE")),
-    by = "LAD22CD", relationship = "many-to-many") %>%
-  left_join(df_age %>% 
-              left_join(df_area_lu, by = c("AREA_CODE" = "OA21CD")) %>% 
-              group_by(MSOA21CD) %>%
-              summarise(OBS = sum(OBS)) %>% 
-              ungroup(),
-            by = "MSOA21CD")
+  inner_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD) %>%
+               anti_join(df_english_prof_quals_msoa %>% distinct(AREA_CODE, AREA_DESC), 
+                         by = c("MSOA21CD" = "AREA_CODE", "MSOA21NM" = "AREA_DESC")),
+             by = "LAD22CD", relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, ENGLISH_PROF_CODE, ENGLISH_PROF_DESC, QUALS_CODE, QUALS_DESC, P) %>%
+  bind_rows(df_english_prof_quals_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS))
 
-names(df_missing)
+# • • 2.2.2. Domain 2: Socioeconomic position ----
 
-df_english_prof_quals_msoa <- df_english_prof_quals_msoa %>% 
-  bind_rows()
+# ROW COUNTS
+# df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(MSOA21CD) %>% NROW()
+# df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(RGN22CD) %>% NROW()
+# df_nssec_occupation_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_nssec_quals_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_nnsec_tenure_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_occupation_quals_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_occupation_tenure_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_quals_tenure_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
 
-df_age_english_prof_msoa %>% dplyr::filter(AREA_CODE=="E02003169") %>% group_by(AREA_CODE) %>% summarise(OBS = sum(OBS))
-df_english_prof_quals_msoa %>% dplyr::filter(AREA_CODE=="E02003169")
+# These constraints are already at MSOA level and cover all areas without any 
+# data suppression so only need to convert into proportions
+df_nssec_occupation_msoa <- df_nssec_occupation_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_nssec_quals_msoa <- df_nssec_quals_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_nnsec_tenure_msoa <- df_nnsec_tenure_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_occupation_quals_msoa <- df_occupation_quals_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_occupation_tenure_msoa <- df_occupation_tenure_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_quals_tenure_msoa <- df_quals_tenure_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
 
-  
+# • • 2.2.3. Domain 3: Physical and practical access ----
 
-# 2. Iterative Proportional Fitting ----
+# ROW COUNTS
+# df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(MSOA21CD) %>% NROW()
+# df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(RGN22CD) %>% NROW()
+# df_age_car_avail_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_age_disability_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_age_health_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_car_avail_disability_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_car_avail_health_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_disability_health_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+
+# These constraints are already at MSOA level and cover all areas without any 
+# data suppression so only need to convert into proportions
+df_age_car_avail_msoa <- df_age_car_avail_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_age_disability_msoa <- df_age_disability_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_age_health_msoa <- df_age_health_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_car_avail_disability_msoa <- df_car_avail_disability_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_car_avail_health_msoa <- df_car_avail_health_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_disability_health_msoa <- df_disability_health_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+
+# • • 2.2.4. Domain 4: Social, cultural and geographical access ----
+
+# ROW COUNTS
+# df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(MSOA21CD) %>% NROW()
+# df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(RGN22CD) %>% NROW()
+# df_car_avail_hhold_comp_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_car_avail_ethnicity_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_car_avail_resid_length_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_ethnicity_hhold_comp_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_ethnicity_resid_length_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_ethnicity_religion_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_hhold_comp_resid_length_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_resid_length_religion_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_car_avail_religion_lad %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_hhold_comp_religion_lad %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+
+# This constraints is already at MSOA level and covers all areas without any 
+# data suppression so only need to convert into proportions
+df_car_avail_hhold_comp_msoa <- df_car_avail_hhold_comp_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+
+# Convert regions into MSOAs
+df_car_avail_religion_msoa <- df_car_avail_religion_lad %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS) %>%
+  left_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD), by = c("AREA_CODE" = "LAD22CD"), relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>% 
+  select(AREA_CODE, AREA_DESC, CAR_AVAIL_CODE, CAR_AVAIL_DESC, RELIGION_CODE, RELIGION_DESC, P)
+
+df_hhold_comp_religion_msoa <- df_hhold_comp_religion_lad %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS) %>%
+  left_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD), by = c("AREA_CODE" = "LAD22CD"), relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, HHOLD_COMP_CODE, HHOLD_COMP_DESC, RELIGION_CODE, RELIGION_DESC, P)
+
+# Data suppression rules have resulted in a number of MSOAs having been removed from the following constraints, 
+# we will replace with the next level (LAD) value
+# Suppressed MSOAs 12
+df_car_avail_ethnicity_msoa <- df_car_avail_ethnicity_msoa %>% 
+  # Add in LAD code
+  left_join(df_area_lu %>% distinct(MSOA21CD, LAD22CD), by = c("AREA_CODE" = "MSOA21CD")) %>% 
+  # Group by LAD and summarise
+  group_by(LAD22CD, CAR_AVAIL_CODE, CAR_AVAIL_DESC, ETHNICITY_CODE, ETHNICITY_DESC) %>%
+  summarise(OBS = sum(OBS), .groups = "keep") %>%
+  ungroup() %>%
+  # Calculate LAD proportions
+  group_by(LAD22CD) %>%
+  mutate(P = OBS/sum(OBS)) %>%
+  ungroup() %>%
+  select(-OBS) %>%
+  inner_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD) %>%
+               anti_join(df_car_avail_ethnicity_msoa %>% distinct(AREA_CODE, AREA_DESC), 
+                         by = c("MSOA21CD" = "AREA_CODE", "MSOA21NM" = "AREA_DESC")),
+             by = "LAD22CD", relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, CAR_AVAIL_CODE, CAR_AVAIL_DESC, ETHNICITY_CODE, ETHNICITY_DESC, P) %>%
+  bind_rows(df_car_avail_ethnicity_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS))
+
+# Suppressed MSOAs 14
+df_car_avail_resid_length_msoa <- df_car_avail_resid_length_msoa %>%
+  # Add in LAD code
+  left_join(df_area_lu %>% distinct(MSOA21CD, LAD22CD), by = c("AREA_CODE" = "MSOA21CD")) %>% 
+  # Group by LAD and summarise
+  group_by(LAD22CD, CAR_AVAIL_CODE, CAR_AVAIL_DESC, RESID_LENGTH_CODE, RESID_LENGTH_DESC) %>%
+  summarise(OBS = sum(OBS), .groups = "keep") %>%
+  ungroup() %>%
+  # Calculate LAD proportions
+  group_by(LAD22CD) %>%
+  mutate(P = OBS/sum(OBS)) %>%
+  ungroup() %>%
+  select(-OBS) %>%
+  inner_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD) %>%
+               anti_join(df_car_avail_resid_length_msoa %>% distinct(AREA_CODE, AREA_DESC), 
+                         by = c("MSOA21CD" = "AREA_CODE", "MSOA21NM" = "AREA_DESC")),
+             by = "LAD22CD", relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, CAR_AVAIL_CODE, CAR_AVAIL_DESC, RESID_LENGTH_CODE, RESID_LENGTH_DESC, P) %>%
+  bind_rows(df_car_avail_resid_length_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS))
+
+# Suppressed MSOAs 12
+df_ethnicity_hhold_comp_msoa <- df_ethnicity_hhold_comp_msoa %>% 
+  # Add in LAD code
+  left_join(df_area_lu %>% distinct(MSOA21CD, LAD22CD), by = c("AREA_CODE" = "MSOA21CD")) %>% 
+  # Group by LAD and summarise
+  group_by(LAD22CD, ETHNICITY_CODE, ETHNICITY_DESC, HHOLD_COMP_CODE, HHOLD_COMP_DESC) %>%
+  summarise(OBS = sum(OBS), .groups = "keep") %>%
+  ungroup() %>%
+  # Calculate LAD proportions
+  group_by(LAD22CD) %>%
+  mutate(P = OBS/sum(OBS)) %>%
+  ungroup() %>%
+  select(-OBS) %>%
+  inner_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD) %>%
+               anti_join(df_ethnicity_hhold_comp_msoa %>% distinct(AREA_CODE, AREA_DESC), 
+                         by = c("MSOA21CD" = "AREA_CODE", "MSOA21NM" = "AREA_DESC")),
+             by = "LAD22CD", relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, ETHNICITY_CODE, ETHNICITY_DESC, HHOLD_COMP_CODE, HHOLD_COMP_DESC, P) %>%
+  bind_rows(df_ethnicity_hhold_comp_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS))
+
+# Suppressed MSOAs 11
+df_ethnicity_resid_length_msoa <- df_ethnicity_resid_length_msoa %>% 
+  # Add in LAD code
+  left_join(df_area_lu %>% distinct(MSOA21CD, LAD22CD), by = c("AREA_CODE" = "MSOA21CD")) %>% 
+  # Group by LAD and summarise
+  group_by(LAD22CD, ETHNICITY_CODE, ETHNICITY_DESC, RESID_LENGTH_CODE, RESID_LENGTH_DESC) %>%
+  summarise(OBS = sum(OBS), .groups = "keep") %>%
+  ungroup() %>%
+  # Calculate LAD proportions
+  group_by(LAD22CD) %>%
+  mutate(P = OBS/sum(OBS)) %>%
+  ungroup() %>%
+  select(-OBS) %>%
+  inner_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD) %>%
+               anti_join(df_ethnicity_resid_length_msoa %>% distinct(AREA_CODE, AREA_DESC), 
+                         by = c("MSOA21CD" = "AREA_CODE", "MSOA21NM" = "AREA_DESC")),
+             by = "LAD22CD", relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, ETHNICITY_CODE, ETHNICITY_DESC, RESID_LENGTH_CODE, RESID_LENGTH_DESC, P) %>%
+  bind_rows(df_ethnicity_resid_length_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS))
+
+# Suppressed MSOAs 2
+# There is an additional problem with the data supression here as the LAD for Isles of Scilly is the MSOA so there is nothing 
+# available at the LAD level, as such we will replace it with the Cornwall LAD proportions which whilst not perfect it is 
+# better than using the national or regional position which are the other options.
+df_ethnicity_religion_msoa <- df_ethnicity_religion_msoa %>% 
+  # Add in LAD code
+  left_join(df_area_lu %>% distinct(MSOA21CD, LAD22CD), by = c("AREA_CODE" = "MSOA21CD")) %>% 
+  # Group by LAD and summarise
+  group_by(LAD22CD, ETHNICITY_CODE, ETHNICITY_DESC, RELIGION_CODE, RELIGION_DESC) %>%
+  summarise(OBS = sum(OBS), .groups = "keep") %>%
+  ungroup() %>%
+  # Calculate LAD proportions
+  group_by(LAD22CD) %>%
+  mutate(P = OBS/sum(OBS)) %>%
+  ungroup() %>%
+  select(-OBS) %>%
+  inner_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD) %>%
+               anti_join(df_ethnicity_religion_msoa %>% distinct(AREA_CODE, AREA_DESC), 
+                         by = c("MSOA21CD" = "AREA_CODE", "MSOA21NM" = "AREA_DESC")) %>%
+               # Manual tweak to deal with Isles of Scilly issue
+               mutate(LAD22CD = if_else(LAD22CD=="E06000053", "E06000052", LAD22CD)),
+             by = "LAD22CD", relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, ETHNICITY_CODE, ETHNICITY_DESC, RELIGION_CODE, RELIGION_DESC, P) %>%
+  bind_rows(df_ethnicity_religion_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS))
+
+# Suppressed MSOAs 13
+df_hhold_comp_resid_length_msoa <- df_hhold_comp_resid_length_msoa %>% 
+  # Add in LAD code
+  left_join(df_area_lu %>% distinct(MSOA21CD, LAD22CD), by = c("AREA_CODE" = "MSOA21CD")) %>% 
+  # Group by LAD and summarise
+  group_by(LAD22CD, HHOLD_COMP_CODE, HHOLD_COMP_DESC, RESID_LENGTH_CODE, RESID_LENGTH_DESC) %>%
+  summarise(OBS = sum(OBS), .groups = "keep") %>%
+  ungroup() %>%
+  # Calculate LAD proportions
+  group_by(LAD22CD) %>%
+  mutate(P = OBS/sum(OBS)) %>%
+  ungroup() %>%
+  select(-OBS) %>%
+  inner_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD) %>%
+               anti_join(df_hhold_comp_resid_length_msoa %>% distinct(AREA_CODE, AREA_DESC), 
+                         by = c("MSOA21CD" = "AREA_CODE", "MSOA21NM" = "AREA_DESC")),
+             by = "LAD22CD", relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, HHOLD_COMP_CODE, HHOLD_COMP_DESC, RESID_LENGTH_CODE, RESID_LENGTH_DESC, P) %>%
+  bind_rows(df_hhold_comp_resid_length_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS))
+
+# Suppressed MSOAs 11
+df_resid_length_religion_msoa <- df_resid_length_religion_msoa %>% 
+  # Add in LAD code
+  left_join(df_area_lu %>% distinct(MSOA21CD, LAD22CD), by = c("AREA_CODE" = "MSOA21CD")) %>% 
+  # Group by LAD and summarise
+  group_by(LAD22CD, RESID_LENGTH_CODE, RESID_LENGTH_DESC, RELIGION_CODE, RELIGION_DESC) %>%
+  summarise(OBS = sum(OBS), .groups = "keep") %>%
+  ungroup() %>%
+  # Calculate LAD proportions
+  group_by(LAD22CD) %>%
+  mutate(P = OBS/sum(OBS)) %>%
+  ungroup() %>%
+  select(-OBS) %>%
+  inner_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD) %>%
+               anti_join(df_resid_length_religion_msoa %>% distinct(AREA_CODE, AREA_DESC), 
+                         by = c("MSOA21CD" = "AREA_CODE", "MSOA21NM" = "AREA_DESC")),
+             by = "LAD22CD", relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, RESID_LENGTH_CODE, RESID_LENGTH_DESC, RELIGION_CODE, RELIGION_DESC, P) %>%
+  bind_rows(df_resid_length_religion_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS))
+
+# • • 2.2.5. Domain 5: Demographic and health inequality ----
+
+# ROW COUNTS
+# df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(MSOA21CD) %>% NROW()
+# df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(RGN22CD) %>% NROW()
+# * ALREADY LOADED * df_age_disability_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW() 
+# df_age_ethnicity_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# * ALREADY LOADED * df_age_health_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_age_sex_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_disability_ethnicity_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# * ALREADY LOADED * df_disability_health_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW() 
+# df_disability_sex_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_ethnicity_health_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_ethnicity_sex_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_health_sex_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+
+# These constraints are already at MSOA level and cover all areas without any 
+# data suppression so only need to convert into proportions
+df_age_ethnicity_msoa <- df_age_ethnicity_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_age_sex_msoa <- df_age_sex_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_disability_ethnicity_msoa <- df_disability_ethnicity_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_disability_sex_msoa <- df_disability_sex_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_ethnicity_health_msoa <- df_ethnicity_health_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_ethnicity_sex_msoa <- df_ethnicity_sex_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_health_sex_msoa <-df_health_sex_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+
+# • • 2.2.6. Domain 6: Timing and caring commitments ----
+
+# ROW COUNTS
+# df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(MSOA21CD) %>% NROW()
+# df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(RGN22CD) %>% NROW()
+# 
+
+# This constraints is already at MSOA level and covers all areas without any 
+# data suppression so only need to convert into proportions
+df_econ_act_unpaid_care_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_hhold_comp_unpaid_care_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+df_hhold_type_unpaid_care_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS)
+
+# There is an additional problem with the data suppression for the next towo constraints here as the LAD for Isles of Scilly 
+# is the MSOA so there is nothing available at the LAD level, as such we will replace it with the Cornwall LAD proportions 
+# which whilst not perfect it is better than using the national or regional position which are the other options.
+# Suppressed MSOAs 2
+df_econ_act_hhold_comp_msoa <- df_econ_act_hhold_comp_msoa %>% 
+  # Add in LAD code
+  left_join(df_area_lu %>% distinct(MSOA21CD, LAD22CD), by = c("AREA_CODE" = "MSOA21CD")) %>% 
+  # Group by LAD and summarise
+  group_by(LAD22CD, ECON_ACT_CODE, ECON_ACT_DESC, HHOLD_COMP_CODE, HHOLD_COMP_DESC) %>%
+  summarise(OBS = sum(OBS), .groups = "keep") %>%
+  ungroup() %>%
+  # Calculate LAD proportions
+  group_by(LAD22CD) %>%
+  mutate(P = OBS/sum(OBS)) %>%
+  ungroup() %>%
+  select(-OBS) %>%
+  inner_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD) %>%
+               anti_join(df_econ_act_hhold_comp_msoa %>% distinct(AREA_CODE, AREA_DESC), 
+                         by = c("MSOA21CD" = "AREA_CODE", "MSOA21NM" = "AREA_DESC")) %>%
+               # Manual tweak to deal with Isles of Scilly issue
+               mutate(LAD22CD = if_else(LAD22CD=="E06000053", "E06000052", LAD22CD)),
+             by = "LAD22CD", relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, ECON_ACT_CODE, ECON_ACT_DESC, HHOLD_COMP_CODE, HHOLD_COMP_DESC, P) %>%
+  bind_rows(df_econ_act_hhold_comp_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS))
+
+# Suppressed MSOAs 2
+df_econ_act_hhold_type_msoa <- df_econ_act_hhold_type_msoa %>% 
+  # Add in LAD code
+  left_join(df_area_lu %>% distinct(MSOA21CD, LAD22CD), by = c("AREA_CODE" = "MSOA21CD")) %>% 
+  # Group by LAD and summarise
+  group_by(LAD22CD, ECON_ACT_CODE, ECON_ACT_DESC, HHOLD_TYPE_CODE, HHOLD_TYPE_DESC) %>%
+  summarise(OBS = sum(OBS), .groups = "keep") %>%
+  ungroup() %>%
+  # Calculate LAD proportions
+  group_by(LAD22CD) %>%
+  mutate(P = OBS/sum(OBS)) %>%
+  ungroup() %>%
+  select(-OBS) %>%
+  inner_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD) %>%
+               anti_join(df_econ_act_hhold_type_msoa %>% distinct(AREA_CODE, AREA_DESC), 
+                         by = c("MSOA21CD" = "AREA_CODE", "MSOA21NM" = "AREA_DESC")) %>%
+               # Manual tweak to deal with Isles of Scilly issue
+               mutate(LAD22CD = if_else(LAD22CD=="E06000053", "E06000052", LAD22CD)),
+             by = "LAD22CD", relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, ECON_ACT_CODE, ECON_ACT_DESC, HHOLD_TYPE_CODE, HHOLD_TYPE_DESC, P) %>%
+  bind_rows(df_econ_act_hhold_type_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS))
+
+# Suppressed MSOAs 3
+df_hhold_comp_hhold_type_msoa <- df_hhold_comp_hhold_type_msoa %>% 
+  # Add in LAD code
+  left_join(df_area_lu %>% distinct(MSOA21CD, LAD22CD), by = c("AREA_CODE" = "MSOA21CD")) %>% 
+  # Group by LAD and summarise
+  group_by(LAD22CD, HHOLD_COMP_CODE, HHOLD_COMP_DESC, HHOLD_TYPE_CODE, HHOLD_TYPE_DESC) %>%
+  summarise(OBS = sum(OBS), .groups = "keep") %>%
+  ungroup() %>%
+  # Calculate LAD proportions
+  group_by(LAD22CD) %>%
+  mutate(P = OBS/sum(OBS)) %>%
+  ungroup() %>%
+  select(-OBS) %>%
+  inner_join(df_area_lu %>% distinct(MSOA21CD, MSOA21NM, LAD22CD) %>%
+               anti_join(df_hhold_comp_hhold_type_msoa %>% distinct(AREA_CODE, AREA_DESC), 
+                         by = c("MSOA21CD" = "AREA_CODE", "MSOA21NM" = "AREA_DESC")),
+             by = "LAD22CD", relationship = "many-to-many") %>%
+  mutate(AREA_CODE = MSOA21CD, AREA_DESC = MSOA21NM) %>%
+  select(AREA_CODE, AREA_DESC, HHOLD_COMP_CODE, HHOLD_COMP_DESC, HHOLD_TYPE_CODE, HHOLD_TYPE_DESC, P) %>%
+  bind_rows(df_hhold_comp_hhold_type_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup() %>% select(-OBS))
+
+# 3. Iterative Proportional Fitting ----
 # ══════════════════════════════════════
 
-# 2.1. Domain 1: Communication ----
-# ─────────────────────────────────
+# • 3.1 High Level Balancing (MSOA Level) ----
 
-# Constraints
-# age x main language
-df_age_main_lang_rgn <- fnProcessConstraint(filename = "data/constraints/age_6_main_lang_11_rgn.csv", vars = c("AGE", "MAIN_LANG"))
-#    • age x proficiency in English
-df_age_english_prof_msoa <- fnProcessConstraint(filename = "data/constraints/age_6_english_prof_4_msoa.csv", vars = c("AGE", "ENGLISH_PROF"))
-#    • age x qualifications
-df_age_quals_msoa <- fnProcessConstraint(filename = "data/constraints/age_6_qual_7_msoa.csv", vars = c("AGE", "QUALS"))
-#    • main language x proficiency in English
-df_main_lang_english_prof_rgn <- fnProcessConstraint(filename = "data/constraints/main_lang_11_english_prof_4_rgn.csv", vars = c("MAIN_LANG", "ENGLISH_PROF"))
-#    • main language x qualifications
-df_main_lang_quals_rgn <- fnProcessConstraint(filename = "data/constraints/main_lang_11_quals_7_rgn.csv", vars = c("MAIN_LANG", "QUALS"))
-#    • proficiency in English x qualifications
-df_english_prof_quals_msoa <- fnProcessConstraint(filename = "data/constraints/english_prof_4_quals_7_msoa.csv", vars = c("ENGLISH_PROF", "QUALS"))
 
-#  Proxy census variables
+df_age_english_prof_msoa
+df_age_quals_msoa
+df_age_main_lang_msoa
+df_main_lang_english_prof_msoa
+df_main_lang_quals_msoa
+df_english_prof_quals_msoa
+
+df_age_english_prof_msoa %>% 
+  select(AREA_CODE, AGE_DESC, ENGLISH_PROF_DESC, P)
+
+
 #    • age
 #    • main language
 #    • proficiency in English
 #    • qualifications
 
+expand_grid(df_age %>% distinct(AGE_DESC),
+            df_main_lang %>% distinct(MAIN_LANG_DESC),
+            df_english_prof %>% distinct(ENGLISH_PROF_DESC)
+            df_main_lang_quals_msoa %>% distinct(QUALS))
 
+expand_grid(
+  df_age_english_prof_msoa[df_age_english_prof_msoa$AREA_CODE=="E02000001", c("AREA_CODE", "AGE_DESC", "ENGLISH_PROF_DESC", "P")],
+  df_age_quals_msoa[df_age_quals_msoa$AREA_CODE=="E02000001", c("AREA_CODE", "AGE_DESC", "QUALS_DESC", "P")])
+
+%>%
+  expand_()
