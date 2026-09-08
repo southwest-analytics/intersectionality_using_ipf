@@ -124,6 +124,159 @@ fnProcessConstraint <- function(filename, vars){
   return(df)
 }
 
+fnD1_CreateSeed <- function(){
+  df_seed <- expand_grid(AGE_CODE = df_code_lookup %>% dplyr::filter(VAR == "AGE") %>% .$CODE,
+                         MAIN_LANG_CODE = df_code_lookup %>% dplyr::filter(VAR == "MAIN_LANG") %>% .$CODE,
+                         ENGLISH_PROF_CODE = df_code_lookup %>% dplyr::filter(VAR == "ENGLISH_PROF") %>% .$CODE,
+                         QUALS_CODE = df_code_lookup %>% dplyr::filter(VAR == "QUALS") %>% .$CODE) %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR == "AGE") %>% mutate(AGE_CODE = CODE, P_AGE = P, .keep = "none"), by = c("AGE_CODE")) %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR == "MAIN_LANG") %>% mutate(MAIN_LANG_CODE = CODE, P_MAIN_LANG = P, .keep = "none"), by = c("MAIN_LANG_CODE")) %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR == "ENGLISH_PROF") %>% mutate(ENGLISH_PROF_CODE = CODE, P_ENGLISH_PROF = P, .keep = "none"), by = c("ENGLISH_PROF_CODE")) %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR == "QUALS") %>% mutate(QUALS_CODE = CODE, P_QUALS = P, .keep = "none"), by = c("QUALS_CODE")) %>%
+    mutate(P_SEED = P_AGE * P_MAIN_LANG * P_ENGLISH_PROF * P_QUALS)
+  
+  seed <- xtabs(
+    P_SEED ~ AGE_CODE + MAIN_LANG_CODE + ENGLISH_PROF_CODE + QUALS_CODE,
+    data = df_seed
+  )
+  
+  return(seed)
+}
+
+
+msoa21cd <- "E02004152"
+fnD1_BalanceHighLevel(msoa21cd, seed)
+
+fnD1_BalanceHighLevel <- function(msoa21cd, seed){
+  tgt_age_main_lang_msoa <- df_age_main_lang_msoa %>%
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    select(AGE_CODE, MAIN_LANG_CODE, P) %>%
+    tidyr::pivot_wider(names_from = MAIN_LANG_CODE, values_from = P) %>%
+    column_to_rownames(var = "AGE_CODE") %>%
+    as.matrix()
+  
+  tgt_age_english_prof_msoa <- df_age_english_prof_msoa %>%
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    select(AGE_CODE, ENGLISH_PROF_CODE, P) %>%
+    tidyr::pivot_wider(names_from = ENGLISH_PROF_CODE, values_from = P) %>%
+    column_to_rownames(var = "AGE_CODE") %>%
+    as.matrix()
+  
+  tgt_age_quals_msoa <- df_age_quals_msoa %>%
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    select(AGE_CODE, QUALS_CODE, P) %>%
+    tidyr::pivot_wider(names_from = QUALS_CODE, values_from = P) %>%
+    column_to_rownames(var = "AGE_CODE") %>%
+    as.matrix()
+  
+  tgt_main_lang_english_prof_msoa <- df_main_lang_english_prof_msoa %>%
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    select(MAIN_LANG_CODE, ENGLISH_PROF_CODE, P) %>%
+    tidyr::pivot_wider(names_from = ENGLISH_PROF_CODE, values_from = P) %>%
+    column_to_rownames(var = "MAIN_LANG_CODE") %>%
+    as.matrix()
+  
+  tgt_main_lang_quals_msoa <- df_main_lang_quals_msoa %>%
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    select(MAIN_LANG_CODE, QUALS_CODE, P) %>%
+    tidyr::pivot_wider(names_from = QUALS_CODE, values_from = P) %>%
+    column_to_rownames(var = "MAIN_LANG_CODE") %>%
+    as.matrix()
+  
+  tgt_english_prof_quals_msoa <- df_english_prof_quals_msoa %>%
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    select(ENGLISH_PROF_CODE, QUALS_CODE, P) %>%
+    tidyr::pivot_wider(names_from = QUALS_CODE, values_from = P) %>%
+    column_to_rownames(var = "ENGLISH_PROF_CODE") %>%
+    as.matrix()
+  
+  target_list <- list(
+    c(1, 2), # Age x Main language
+    c(1, 3), # Age x English proficiency
+    c(1, 4), # Age x Qualifications
+    c(2, 3), # Main language x English proficiency
+    c(2, 4), # Main language x Qualifications
+    c(3, 4) # English proficiency x Qualifications
+  )
+  
+  target_data <- list(
+    tgt_age_main_lang_msoa,
+    tgt_age_english_prof_msoa,
+    tgt_age_quals_msoa,
+    tgt_main_lang_english_prof_msoa,
+    tgt_main_lang_quals_msoa,
+    tgt_english_prof_quals_msoa
+  )
+  
+  # Run the ipf for the high level geography
+  ipf_high_level <- mipfp::Ipfp(
+    seed = seed,
+    target.list = target_list,
+    target.data = target_data,
+    print = TRUE,
+    iter = 1000,
+    tol = 1e-10,
+    tol.margins = 1e-10
+  )
+
+  browser()
+  
+  oa_list <- df_area_lu %>% dplyr::filter(MSOA21CD == msoa21cd) %>% distinct(OA21CD) %>% .$OA21CD
+  res <- do.call("rbind", lapply(oa_list, fnD1_BalanceLowLevel, ipf_high_level, df_popn))
+  
+  df_ipf_high_level <- ipf_high_level$p.hat %>% 
+    as.data.frame() %>%
+    mutate(AREA_CODE = msoa21cd, .before = 1) %>%
+    rename(c(P = "Freq")) %>%
+    left_join(df_popn %>% select(AREA_CODE, OBS) %>%
+                left_join(df_area_lu %>% select(OA21CD, MSOA21CD, MSOA21NM), by = c("AREA_CODE" = "OA21CD")) %>%
+                group_by(MSOA21CD, MSOA21NM) %>%
+                summarise(OBS = sum(OBS), .groups = "keep") %>% 
+                ungroup() %>% 
+                rename_with(.fn = ~c("AREA_CODE", "AREA_DESC", "OBS")),
+              by = "AREA_CODE") %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR=="AGE") %>% mutate(AGE_CODE = as.factor(CODE), AGE_DESC = DESC, .keep = "none"), by = "AGE_CODE") %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR=="MAIN_LANG") %>% mutate(MAIN_LANG_CODE = as.factor(CODE), MAIN_LANG_DESC = DESC, .keep = "none"), by = "MAIN_LANG_CODE") %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR=="ENGLISH_PROF") %>% mutate(ENGLISH_PROF_CODE = as.factor(CODE), ENGLISH_PROF_DESC = DESC, .keep = "none"), by = "ENGLISH_PROF_CODE") %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR=="QUALS") %>% mutate(QUALS_CODE = as.factor(CODE), QUALS_DESC = DESC, .keep = "none"), by = "QUALS_CODE") %>%
+    select(AREA_CODE, AGE_CODE, AGE_DESC, MAIN_LANG_CODE, MAIN_LANG_DESC, ENGLISH_PROF_CODE, ENGLISH_PROF_DESC, QUALS_CODE, QUALS_DESC, OBS, P)
+
+  return(list(hi = df_ipf_high_level, lo = res))  
+}
+
+oa21cd <- oa_list[2]
+
+# PROBLEM E00101203 ----
+fnD1_BalanceLowLevel <- function(oa21cd, ipf_high_level, df_popn){
+  age <- df_age %>% dplyr::filter(AREA_CODE == oa21cd) %>% .$P
+  main_lang <- df_main_lang %>% dplyr::filter(AREA_CODE == oa21cd) %>% .$P
+  english_prof <- df_english_prof %>% dplyr::filter(AREA_CODE == oa21cd) %>% .$P
+  quals <- df_quals %>% dplyr::filter(AREA_CODE == oa21cd) %>% .$P
+  
+  ipf_low_level <- mipfp::Ipfp(
+    seed = ipf_high_level$p.hat,
+    target.list = list(1, 2, 3, 4),
+    target.data = list(age, main_lang, english_prof, quals),
+    iter = 1000,
+    tol = 1e-10,
+    tol.margins = 1e-6
+  )
+  
+  df_ipf_low_level <- ipf_low_level$p.hat %>%
+    as.data.frame() %>% 
+    mutate(AREA_CODE = oa21cd, P = Freq) %>%
+    select(AREA_CODE, AGE_CODE, MAIN_LANG_CODE, ENGLISH_PROF_CODE, QUALS_CODE, P) %>%
+    left_join(df_popn, by = "AREA_CODE") %>%
+    mutate(OBS = P * OBS) %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR=="AGE") %>% mutate(AGE_CODE = as.factor(CODE), AGE_DESC = DESC, .keep = "none"), by = "AGE_CODE") %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR=="MAIN_LANG") %>% mutate(MAIN_LANG_CODE = as.factor(CODE), MAIN_LANG_DESC = DESC, .keep = "none"), by = "MAIN_LANG_CODE") %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR=="ENGLISH_PROF") %>% mutate(ENGLISH_PROF_CODE = as.factor(CODE), ENGLISH_PROF_DESC = DESC, .keep = "none"), by = "ENGLISH_PROF_CODE") %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR=="QUALS") %>% mutate(QUALS_CODE = as.factor(CODE), QUALS_DESC = DESC, .keep = "none"), by = "QUALS_CODE") %>%
+    select(AREA_CODE, AGE_CODE, AGE_DESC, MAIN_LANG_CODE, MAIN_LANG_DESC, ENGLISH_PROF_CODE, ENGLISH_PROF_DESC, QUALS_CODE, QUALS_DESC, OBS, P)
+    
+    return(df_ipf_low_level)
+}
+
 # 1. Load Data ----
 # ════════════════════════════════════════════
 
@@ -824,129 +977,14 @@ fnProcessDomain1 <- function(){
   
   # Balance high level geography
   msoa_list <- df_area_lu %>% dplyr::filter(grepl("^E", MSOA21CD)) %>% distinct(MSOA21CD) %>% .$MSOA21CD
-  ipf_high <- lapply(msoa_list, fnD1_BalanceHighLevel)
+  res <- do.call("rbind", lapply(msoa_list, fnD1_BalanceHighLevel, seed))
   
+  fnD1_BalanceHighLevel(msoa_list[1], seed)
   # Process low level geography
   oa_list <- 
 }
 
-fnD1_CreateSeed <- function(){
-  df_seed <- expand_grid(AGE_CODE = df_code_lookup %>% dplyr::filter(VAR == "AGE") %>% .$CODE,
-                         MAIN_LANG_CODE = df_code_lookup %>% dplyr::filter(VAR == "MAIN_LANG") %>% .$CODE,
-                         ENGLISH_PROF_CODE = df_code_lookup %>% dplyr::filter(VAR == "ENGLISH_PROF") %>% .$CODE,
-                         QUALS_CODE = df_code_lookup %>% dplyr::filter(VAR == "QUALS") %>% .$CODE) %>%
-    left_join(df_code_lookup %>% dplyr::filter(VAR == "AGE") %>% mutate(AGE_CODE = CODE, P_AGE = P, .keep = "none"), by = c("AGE_CODE")) %>%
-    left_join(df_code_lookup %>% dplyr::filter(VAR == "MAIN_LANG") %>% mutate(MAIN_LANG_CODE = CODE, P_MAIN_LANG = P, .keep = "none"), by = c("MAIN_LANG_CODE")) %>%
-    left_join(df_code_lookup %>% dplyr::filter(VAR == "ENGLISH_PROF") %>% mutate(ENGLISH_PROF_CODE = CODE, P_ENGLISH_PROF = P, .keep = "none"), by = c("ENGLISH_PROF_CODE")) %>%
-    left_join(df_code_lookup %>% dplyr::filter(VAR == "QUALS") %>% mutate(QUALS_CODE = CODE, P_QUALS = P, .keep = "none"), by = c("QUALS_CODE")) %>%
-    mutate(P_SEED = P_AGE * P_MAIN_LANG * P_ENGLISH_PROF * P_QUALS)
 
-  seed <- xtabs(
-    P_SEED ~ AGE_CODE + MAIN_LANG_CODE + ENGLISH_PROF_CODE + QUALS_CODE,
-    data = df_seed
-  )
-  
-  return(seed)
-}
-
-fnD1_BalanceHighLevel <- function(msoa21cd){
-  tgt_age_main_lang_msoa <- df_age_main_lang_msoa %>%
-    dplyr::filter(AREA_CODE == msoa21cd) %>%
-    select(AGE_CODE, MAIN_LANG_CODE, P) %>%
-    tidyr::pivot_wider(names_from = MAIN_LANG_CODE, values_from = P) %>%
-    column_to_rownames(var = "AGE_CODE") %>%
-    as.matrix()
-  
-  tgt_age_english_prof_msoa <- df_age_english_prof_msoa %>%
-    dplyr::filter(AREA_CODE == msoa21cd) %>%
-    select(AGE_CODE, ENGLISH_PROF_CODE, P) %>%
-    tidyr::pivot_wider(names_from = ENGLISH_PROF_CODE, values_from = P) %>%
-    column_to_rownames(var = "AGE_CODE") %>%
-    as.matrix()
-  
-  tgt_age_quals_msoa <- df_age_quals_msoa %>%
-    dplyr::filter(AREA_CODE == msoa21cd) %>%
-    select(AGE_CODE, QUALS_CODE, P) %>%
-    tidyr::pivot_wider(names_from = QUALS_CODE, values_from = P) %>%
-    column_to_rownames(var = "AGE_CODE") %>%
-    as.matrix()
-  
-  tgt_main_lang_english_prof_msoa <- df_main_lang_english_prof_msoa %>%
-    dplyr::filter(AREA_CODE == msoa21cd) %>%
-    select(MAIN_LANG_CODE, ENGLISH_PROF_CODE, P) %>%
-    tidyr::pivot_wider(names_from = ENGLISH_PROF_CODE, values_from = P) %>%
-    column_to_rownames(var = "MAIN_LANG_CODE") %>%
-    as.matrix()
-  
-  tgt_main_lang_quals_msoa <- df_main_lang_quals_msoa %>%
-    dplyr::filter(AREA_CODE == msoa21cd) %>%
-    select(MAIN_LANG_CODE, QUALS_CODE, P) %>%
-    tidyr::pivot_wider(names_from = QUALS_CODE, values_from = P) %>%
-    column_to_rownames(var = "MAIN_LANG_CODE") %>%
-    as.matrix()
-  
-  tgt_english_prof_quals_msoa <- df_english_prof_quals_msoa %>%
-    dplyr::filter(AREA_CODE == msoa21cd) %>%
-    select(ENGLISH_PROF_CODE, QUALS_CODE, P) %>%
-    tidyr::pivot_wider(names_from = QUALS_CODE, values_from = P) %>%
-    column_to_rownames(var = "ENGLISH_PROF_CODE") %>%
-    as.matrix()
-  
-  target_list <- list(
-    c(1, 2), # Age x Main language
-    c(1, 3), # Age x English proficiency
-    c(1, 4), # Age x Qualifications
-    c(2, 3), # Main language x English proficiency
-    c(2, 4), # Main language x Qualifications
-    c(3, 4) # English proficiency x Qualifications
-  )
-  
-  target_data <- list(
-    tgt_age_main_lang_msoa,
-    tgt_age_english_prof_msoa,
-    tgt_age_quals_msoa,
-    tgt_main_lang_english_prof_msoa,
-    tgt_main_lang_quals_msoa,
-    tgt_english_prof_quals_msoa
-  )
-
-  # Run the ipf for the high level geography
-  ipf_high_level <- mipfp::Ipfp(
-    seed = seed,
-    target.list = res[["target_list"]],
-    target.data = res[["target_data"]],
-    print = TRUE,
-    iter = 1000,
-    tol = 1e-10,
-    tol.margins = 1e-10
-  )
-
-  oa_list <- df_area_lu %>% dplyr::filter(MSOA21CD == msoa21cd) %>% distinct(OA21CD) %>% .$OA21CD
-  lapply(oa_list, fnD1_BalanceLowLevel, ipf_high_level)
-  
-  return()  
-}
-
-
-fnD1_BalanceLowLevel <- function(oa21cd, ipf_high_level){
-  popn <- df_age %>% dplyr::filter(AREA_CODE == oa_list[1]) %>% summarise(OBS = sum(OBS))
-  age <- df_age %>% dplyr::filter(AREA_CODE == oa_list[1]) %>% .$P
-  main_lang <- df_main_lang %>% dplyr::filter(AREA_CODE == oa_list[1]) %>% .$P
-  english_prof <- df_english_prof %>% dplyr::filter(AREA_CODE == oa_list[1]) %>% .$P
-  quals <- df_quals %>% dplyr::filter(AREA_CODE == oa_list[1]) %>% .$P
-  
-  ipf_low_level <- mipfp::Ipfp(
-    seed = ipf_high_level$p.hat,
-    target.list = list(1, 2, 3, 4),
-    target.data = list(age, main_lang, english_prof, quals),
-    iter = 1000,
-    tol = 1e-10,
-    tol.margins = 1e-10
-  )
-  
-  df_ipf_low_level <- ipf_low_level$p.hat %>%
-  return()
-}
 
 # Create target matrices for the constraints
 
