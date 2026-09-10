@@ -1,8 +1,8 @@
-# Research Inclusion Barrier Domains constructed from INCLUDE characteristics
-# ═══════════════════════════════════════════════════════════════════════════
+# Notes: Research Inclusion Barrier Domains constructed from INCLUDE characteristics ----
+# ═══════════════════════════════════════════════════════════════════════════════════════
 
-# 1. Communication
-# ────────────────
+# • Domain 1. Communication ----
+# ──────────────────────────────
 
 #  INCLUDE characteristics 
 #    • language barriers
@@ -16,8 +16,8 @@
 #    • proficiency in English
 #    • qualifications
 
-# 2. Socioeconomic position
-# ─────────────────────────
+# • Domain 2. Socioeconomic position ----
+# ───────────────────────────────────────
 
 #  INCLUDE characteristics 
 #    • socioeconomic disadvantage
@@ -31,8 +31,8 @@
 #    • qualifications
 #    • tenure
 
-# 3. Physical and practical access
-# ────────────────────────────────
+# • Domain 3. Physical and practical access ----
+# ──────────────────────────────────────────────
 
 #  INCLUDE characteristics 
 #    • physical disability
@@ -45,8 +45,8 @@
 #    • disability
 #    • general health
 
-# 4. Social, cultural and geographical access
-# ───────────────────────────────────────────
+# • Domain 4. Social, cultural and geographical access ----
+# ─────────────────────────────────────────────────────────
 
 #  INCLUDE characteristics 
 #    • ethnicity
@@ -62,8 +62,8 @@
 #    • length of residence
 #    • religion
 
-# 5. Demographic and health inequality
-# ────────────────────────────────────
+# • Domain 5. Demographic and health inequality ----
+# ──────────────────────────────────────────────────
 
 #  INCLUDE characteristics 
 #    • systematic under-representation
@@ -77,8 +77,8 @@
 #    • general Health
 #    • sex
 
-# 6. Timing and caring commitments
-# ────────────────────────────────
+# • Domain 6. Timing and caring commitments ----
+# ──────────────────────────────────────────────
 
 #  INCLUDE characteristics 
 #    • carers 
@@ -98,6 +98,8 @@
 # ════════════════════════════════════════════
 library(tidyverse)
 library(mipfp)
+library(pbapply)
+library(parallel)
 
 fnProcessMarginal <- function(filename, var){
   df <- read.csv(filename)
@@ -124,6 +126,8 @@ fnProcessConstraint <- function(filename, vars){
   return(df)
 }
 
+# • Domain 1. Communication functions ----
+# ────────────────────────────────────────
 fnD1_CreateSeed <- function(){
   df_seed <- expand_grid(AGE_CODE = df_code_lookup %>% dplyr::filter(VAR == "AGE") %>% .$CODE,
                          MAIN_LANG_CODE = df_code_lookup %>% dplyr::filter(VAR == "MAIN_LANG") %>% .$CODE,
@@ -143,11 +147,7 @@ fnD1_CreateSeed <- function(){
   return(seed)
 }
 
-
-msoa21cd <- "E02004152"
-fnD1_BalanceHighLevel(msoa21cd, seed)
-
-fnD1_BalanceHighLevel <- function(msoa21cd, seed){
+fnD1_BalanceHighLevel <- function(msoa21cd, seed, b_detail = TRUE){
   tgt_age_main_lang_msoa <- df_age_main_lang_msoa %>%
     dplyr::filter(AREA_CODE == msoa21cd) %>%
     select(AGE_CODE, MAIN_LANG_CODE, P) %>%
@@ -213,69 +213,623 @@ fnD1_BalanceHighLevel <- function(msoa21cd, seed){
     seed = seed,
     target.list = target_list,
     target.data = target_data,
-    print = TRUE,
-    iter = 1000,
-    tol = 1e-10,
+    print = FALSE,
+    iter = 10000,
+    tol = 1e-15,
     tol.margins = 1e-10
   )
 
-  browser()
-  
+  # Calculate maximum absolute error and 
+  df_error <- df_age_main_lang_msoa %>% 
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    left_join(ipf_high_level$p.hat %>% 
+                as.data.frame() %>%
+                group_by(AGE_CODE, MAIN_LANG_CODE) %>%
+                summarise(P_BALANCED = sum(Freq), .groups = "keep") %>%
+                ungroup() %>%
+                mutate(AGE_CODE = as.integer(as.character(AGE_CODE)),
+                       MAIN_LANG_CODE = as.integer(as.character(MAIN_LANG_CODE))),
+              by = c("AGE_CODE", "MAIN_LANG_CODE")) %>%
+    mutate(DIFF = abs(P - P_BALANCED)) %>%
+    arrange(desc(DIFF)) %>%
+    slice_head(n = 1) %>%
+    mutate(VAR_A = "AGE", 
+           VAR_A_CODE = AGE_CODE,
+           VAR_A_DESC = AGE_DESC,
+           VAR_B = "MAIN_LANG",
+           VAR_B_CODE = MAIN_LANG_CODE,
+           VAR_B_DESC = MAIN_LANG_DESC,
+           P_CONSTRAINT = P,
+           P_BALANCED = P_BALANCED,
+           ABS_DIFF = DIFF,
+           .keep = "none") %>%
+    bind_rows(df_age_english_prof_msoa %>% 
+                dplyr::filter(AREA_CODE == msoa21cd) %>%
+                left_join(ipf_high_level$p.hat %>% 
+                            as.data.frame() %>%
+                            group_by(AGE_CODE, ENGLISH_PROF_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq), .groups = "keep") %>%
+                            ungroup() %>%
+                            mutate(AGE_CODE = as.integer(as.character(AGE_CODE)),
+                                   ENGLISH_PROF_CODE = as.integer(as.character(ENGLISH_PROF_CODE))),
+                          by = c("AGE_CODE", "ENGLISH_PROF_CODE")) %>%
+                mutate(DIFF = abs(P - P_BALANCED)) %>%
+                arrange(desc(DIFF)) %>%
+                slice_head(n = 1) %>%
+                mutate(VAR_A = "AGE", 
+                       VAR_A_CODE = AGE_CODE,
+                       VAR_A_DESC = AGE_DESC,
+                       VAR_B = "ENGLISH_PROF",
+                       VAR_B_CODE = ENGLISH_PROF_CODE,
+                       VAR_B_DESC = ENGLISH_PROF_DESC,
+                       P_CONSTRAINT = P,
+                       P_BALANCED = P_BALANCED,
+                       ABS_DIFF = DIFF,
+                       .keep = "none")) %>%
+    bind_rows(df_age_quals_msoa %>% 
+                dplyr::filter(AREA_CODE == msoa21cd) %>%
+                left_join(ipf_high_level$p.hat %>% 
+                            as.data.frame() %>%
+                            group_by(AGE_CODE, QUALS_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq), .groups = "keep") %>%
+                            ungroup() %>%
+                            mutate(AGE_CODE = as.integer(as.character(AGE_CODE)),
+                                   QUALS_CODE = as.integer(as.character(QUALS_CODE))),
+                          by = c("AGE_CODE", "QUALS_CODE")) %>%
+                mutate(DIFF = abs(P - P_BALANCED)) %>%
+                arrange(desc(DIFF)) %>%
+                slice_head(n = 1) %>%
+                mutate(VAR_A = "AGE", 
+                       VAR_A_CODE = AGE_CODE,
+                       VAR_A_DESC = AGE_DESC,
+                       VAR_B = "QUALS",
+                       VAR_B_CODE = QUALS_CODE,
+                       VAR_B_DESC = QUALS_DESC,
+                       P_CONSTRAINT = P,
+                       P_BALANCED = P_BALANCED,
+                       ABS_DIFF = DIFF,
+                       .keep = "none")) %>%
+    bind_rows(df_main_lang_english_prof_msoa %>% 
+                dplyr::filter(AREA_CODE == msoa21cd) %>%
+                left_join(ipf_high_level$p.hat %>% 
+                            as.data.frame() %>%
+                            group_by(MAIN_LANG_CODE, ENGLISH_PROF_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq), .groups = "keep") %>%
+                            ungroup() %>%
+                            mutate(MAIN_LANG_CODE = as.integer(as.character(MAIN_LANG_CODE)),
+                                   ENGLISH_PROF_CODE = as.integer(as.character(ENGLISH_PROF_CODE))),
+                          by = c("MAIN_LANG_CODE", "ENGLISH_PROF_CODE")) %>%
+                mutate(DIFF = abs(P - P_BALANCED)) %>%
+                arrange(desc(DIFF)) %>%
+                slice_head(n = 1) %>%
+                mutate(VAR_A = "MAIN_LANG",
+                       VAR_A_CODE = MAIN_LANG_CODE,
+                       VAR_A_DESC = MAIN_LANG_DESC,
+                       VAR_B = "ENGLISH_PROF", 
+                       VAR_B_CODE = ENGLISH_PROF_CODE,
+                       VAR_B_DESC = ENGLISH_PROF_DESC,
+                       P_CONSTRAINT = P,
+                       P_BALANCED = P_BALANCED,
+                       ABS_DIFF = DIFF,
+                       .keep = "none")) %>%
+    bind_rows(df_main_lang_quals_msoa %>% 
+                dplyr::filter(AREA_CODE == msoa21cd) %>%
+                left_join(ipf_high_level$p.hat %>% 
+                            as.data.frame() %>%
+                            group_by(MAIN_LANG_CODE, QUALS_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq), .groups = "keep") %>%
+                            ungroup() %>%
+                            mutate(MAIN_LANG_CODE = as.integer(as.character(MAIN_LANG_CODE)),
+                                   QUALS_CODE = as.integer(as.character(QUALS_CODE))),
+                          by = c("MAIN_LANG_CODE", "QUALS_CODE")) %>%
+                mutate(DIFF = abs(P - P_BALANCED)) %>%
+                arrange(desc(DIFF)) %>%
+                slice_head(n = 1) %>%
+                mutate(VAR_A = "MAIN_LANG",
+                       VAR_A_CODE = MAIN_LANG_CODE,
+                       VAR_A_DESC = MAIN_LANG_DESC,
+                       VAR_B = "QUALS", 
+                       VAR_B_CODE = QUALS_CODE,
+                       VAR_B_DESC = QUALS_DESC,
+                       P_CONSTRAINT = P,
+                       P_BALANCED = P_BALANCED,
+                       ABS_DIFF = DIFF,
+                       .keep = "none")) %>%
+    bind_rows(df_english_prof_quals_msoa %>% 
+                dplyr::filter(AREA_CODE == msoa21cd) %>%
+                left_join(ipf_high_level$p.hat %>% 
+                            as.data.frame() %>%
+                            group_by(ENGLISH_PROF_CODE, QUALS_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq), .groups = "keep") %>%
+                            ungroup() %>%
+                            mutate(ENGLISH_PROF_CODE = as.integer(as.character(ENGLISH_PROF_CODE)),
+                                   QUALS_CODE = as.integer(as.character(QUALS_CODE))),
+                          by = c("ENGLISH_PROF_CODE", "QUALS_CODE")) %>%
+                mutate(DIFF = abs(P - P_BALANCED)) %>%
+                arrange(desc(DIFF)) %>%
+                slice_head(n = 1) %>%
+                mutate(VAR_A = "ENGLISH_PROF",
+                       VAR_A_CODE = ENGLISH_PROF_CODE,
+                       VAR_A_DESC = ENGLISH_PROF_DESC,
+                       VAR_B = "QUALS", 
+                       VAR_B_CODE = QUALS_CODE,
+                       VAR_B_DESC = QUALS_DESC,
+                       P_CONSTRAINT = P,
+                       P_BALANCED = P_BALANCED,
+                       ABS_DIFF = DIFF,
+                       .keep = "none")) %>%
+    select(VAR_A, VAR_A_CODE, VAR_A_DESC,
+           VAR_B, VAR_B_CODE, VAR_B_DESC,
+           P_CONSTRAINT, P_BALANCED, ABS_DIFF) %>%
+    arrange(desc(ABS_DIFF))
+    
   oa_list <- df_area_lu %>% dplyr::filter(MSOA21CD == msoa21cd) %>% distinct(OA21CD) %>% .$OA21CD
-  res <- do.call("rbind", lapply(oa_list, fnD1_BalanceLowLevel, ipf_high_level, df_popn))
+  res <- lapply(oa_list, fnD1_BalanceLowLevel, ipf_high_level, b_detail)
   
-  df_ipf_high_level <- ipf_high_level$p.hat %>% 
-    as.data.frame() %>%
-    mutate(AREA_CODE = msoa21cd, .before = 1) %>%
-    rename(c(P = "Freq")) %>%
-    left_join(df_popn %>% select(AREA_CODE, OBS) %>%
-                left_join(df_area_lu %>% select(OA21CD, MSOA21CD, MSOA21NM), by = c("AREA_CODE" = "OA21CD")) %>%
-                group_by(MSOA21CD, MSOA21NM) %>%
-                summarise(OBS = sum(OBS), .groups = "keep") %>% 
-                ungroup() %>% 
-                rename_with(.fn = ~c("AREA_CODE", "AREA_DESC", "OBS")),
-              by = "AREA_CODE") %>%
-    left_join(df_code_lookup %>% dplyr::filter(VAR=="AGE") %>% mutate(AGE_CODE = as.factor(CODE), AGE_DESC = DESC, .keep = "none"), by = "AGE_CODE") %>%
-    left_join(df_code_lookup %>% dplyr::filter(VAR=="MAIN_LANG") %>% mutate(MAIN_LANG_CODE = as.factor(CODE), MAIN_LANG_DESC = DESC, .keep = "none"), by = "MAIN_LANG_CODE") %>%
-    left_join(df_code_lookup %>% dplyr::filter(VAR=="ENGLISH_PROF") %>% mutate(ENGLISH_PROF_CODE = as.factor(CODE), ENGLISH_PROF_DESC = DESC, .keep = "none"), by = "ENGLISH_PROF_CODE") %>%
-    left_join(df_code_lookup %>% dplyr::filter(VAR=="QUALS") %>% mutate(QUALS_CODE = as.factor(CODE), QUALS_DESC = DESC, .keep = "none"), by = "QUALS_CODE") %>%
-    select(AREA_CODE, AGE_CODE, AGE_DESC, MAIN_LANG_CODE, MAIN_LANG_DESC, ENGLISH_PROF_CODE, ENGLISH_PROF_DESC, QUALS_CODE, QUALS_DESC, OBS, P)
-
-  return(list(hi = df_ipf_high_level, lo = res))  
+  if(b_detail){
+    return_val <- list("hi" = list("ipf" = ipf_high_level, "error" = df_error, "target_data" = target_data, "target_list" = target_list), "lo" = res)
+  } else
+  {
+    return_val <- list("hi" = list("phat" = ipf_high_level$p.hat, "error" = df_error, "conv" = ipf_high_level$conv), "lo" = res)
+  }
+  return(return_val)  
 }
 
-oa21cd <- oa_list[2]
 
-# PROBLEM E00101203 ----
-fnD1_BalanceLowLevel <- function(oa21cd, ipf_high_level, df_popn){
+fnD1_BalanceLowLevel <- function(oa21cd, ipf_high_level, b_detail = TRUE){
   age <- df_age %>% dplyr::filter(AREA_CODE == oa21cd) %>% .$P
   main_lang <- df_main_lang %>% dplyr::filter(AREA_CODE == oa21cd) %>% .$P
   english_prof <- df_english_prof %>% dplyr::filter(AREA_CODE == oa21cd) %>% .$P
   quals <- df_quals %>% dplyr::filter(AREA_CODE == oa21cd) %>% .$P
   
+  target_data <- list(age, main_lang, english_prof, quals)
+  target_list <- list(1, 2, 3, 4)
+  
   ipf_low_level <- mipfp::Ipfp(
     seed = ipf_high_level$p.hat,
-    target.list = list(1, 2, 3, 4),
-    target.data = list(age, main_lang, english_prof, quals),
+    target.list = target_list,
+    target.data = target_data,
+    print = FALSE,
     iter = 1000,
     tol = 1e-10,
     tol.margins = 1e-6
   )
   
-  df_ipf_low_level <- ipf_low_level$p.hat %>%
-    as.data.frame() %>% 
-    mutate(AREA_CODE = oa21cd, P = Freq) %>%
-    select(AREA_CODE, AGE_CODE, MAIN_LANG_CODE, ENGLISH_PROF_CODE, QUALS_CODE, P) %>%
-    left_join(df_popn, by = "AREA_CODE") %>%
-    mutate(OBS = P * OBS) %>%
-    left_join(df_code_lookup %>% dplyr::filter(VAR=="AGE") %>% mutate(AGE_CODE = as.factor(CODE), AGE_DESC = DESC, .keep = "none"), by = "AGE_CODE") %>%
-    left_join(df_code_lookup %>% dplyr::filter(VAR=="MAIN_LANG") %>% mutate(MAIN_LANG_CODE = as.factor(CODE), MAIN_LANG_DESC = DESC, .keep = "none"), by = "MAIN_LANG_CODE") %>%
-    left_join(df_code_lookup %>% dplyr::filter(VAR=="ENGLISH_PROF") %>% mutate(ENGLISH_PROF_CODE = as.factor(CODE), ENGLISH_PROF_DESC = DESC, .keep = "none"), by = "ENGLISH_PROF_CODE") %>%
-    left_join(df_code_lookup %>% dplyr::filter(VAR=="QUALS") %>% mutate(QUALS_CODE = as.factor(CODE), QUALS_DESC = DESC, .keep = "none"), by = "QUALS_CODE") %>%
-    select(AREA_CODE, AGE_CODE, AGE_DESC, MAIN_LANG_CODE, MAIN_LANG_DESC, ENGLISH_PROF_CODE, ENGLISH_PROF_DESC, QUALS_CODE, QUALS_DESC, OBS, P)
-    
-    return(df_ipf_low_level)
+  # Calculate absolute errors
+  df_error <- df_age %>% 
+    dplyr::filter(AREA_CODE==oa21cd) %>% 
+    left_join(ipf_low_level$p.hat %>%
+                as.data.frame() %>%
+                group_by(AGE_CODE) %>%
+                summarise(P_BALANCED = sum(Freq)) %>%
+                ungroup() %>%
+                mutate(AGE_CODE = as.integer(as.character(AGE_CODE))),
+              by = "AGE_CODE") %>%
+    mutate(ABS_DIFF = abs(P - P_BALANCED),
+           VAR = "AGE",
+           VAR_CODE = AGE_CODE,
+           VAR_DESC = AGE_DESC,
+           P_MARGINAL = P,
+           P_BALANCED) %>%
+    arrange(desc(ABS_DIFF)) %>%
+    slice_head(n = 1) %>%
+    select(VAR, VAR_CODE, VAR_DESC, P_MARGINAL, P_BALANCED, ABS_DIFF) %>%
+    bind_rows(df_main_lang %>% 
+                dplyr::filter(AREA_CODE==oa21cd) %>% 
+                left_join(ipf_low_level$p.hat %>%
+                            as.data.frame() %>%
+                            group_by(MAIN_LANG_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq)) %>%
+                            ungroup() %>%
+                            mutate(MAIN_LANG_CODE = as.integer(as.character(MAIN_LANG_CODE))),
+                          by = "MAIN_LANG_CODE") %>%
+                mutate(ABS_DIFF = abs(P - P_BALANCED),
+                       VAR = "MAIN_LANG",
+                       VAR_CODE = MAIN_LANG_CODE,
+                       VAR_DESC = MAIN_LANG_DESC,
+                       P_MARGINAL = P,
+                       P_BALANCED) %>%
+                arrange(desc(ABS_DIFF)) %>%
+                slice_head(n = 1) %>%
+                select(VAR, VAR_CODE, VAR_DESC, P_MARGINAL, P_BALANCED, ABS_DIFF)) %>%
+    bind_rows(df_english_prof %>% 
+                dplyr::filter(AREA_CODE==oa21cd) %>% 
+                left_join(ipf_low_level$p.hat %>%
+                            as.data.frame() %>%
+                            group_by(ENGLISH_PROF_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq)) %>%
+                            ungroup() %>%
+                            mutate(ENGLISH_PROF_CODE = as.integer(as.character(ENGLISH_PROF_CODE))),
+                          by = "ENGLISH_PROF_CODE") %>%
+                mutate(ABS_DIFF = abs(P - P_BALANCED),
+                       VAR = "ENGLISH_PROF",
+                       VAR_CODE = ENGLISH_PROF_CODE,
+                       VAR_DESC = ENGLISH_PROF_DESC,
+                       P_MARGINAL = P,
+                       P_BALANCED) %>%
+                arrange(desc(ABS_DIFF)) %>%
+                slice_head(n = 1) %>%
+                select(VAR, VAR_CODE, VAR_DESC, P_MARGINAL, P_BALANCED, ABS_DIFF)) %>%
+    bind_rows(df_quals %>% 
+                dplyr::filter(AREA_CODE==oa21cd) %>% 
+                left_join(ipf_low_level$p.hat %>%
+                            as.data.frame() %>%
+                            group_by(QUALS_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq)) %>%
+                            ungroup() %>%
+                            mutate(QUALS_CODE = as.integer(as.character(QUALS_CODE))),
+                          by = "QUALS_CODE") %>%
+                mutate(ABS_DIFF = abs(P - P_BALANCED),
+                       VAR = "QUALS",
+                       VAR_CODE = QUALS_CODE,
+                       VAR_DESC = QUALS_DESC,
+                       P_MARGINAL = P,
+                       P_BALANCED) %>%
+                arrange(desc(ABS_DIFF)) %>%
+                slice_head(n = 1) %>%
+                select(VAR, VAR_CODE, VAR_DESC, P_MARGINAL, P_BALANCED, ABS_DIFF)) %>%
+    arrange(desc(ABS_DIFF))
+
+  if(b_detail){
+    return_val <- list("ipf" = ipf_low_level, "error" = df_error, "target_data" = target_data, "target_list" = target_list)
+  } else {
+    return_val <- list("phat" = ipf_low_level$p.hat, "error" = df_error, "conv" = ipf_low_level$conv)
+  }
+  return(return_val)  
 }
+
+# • Domain 2. Communication functions ----
+# ────────────────────────────────────────
+fnD2_CreateSeed <- function(){
+  df_seed <- expand_grid(NSSEC_CODE = df_code_lookup %>% dplyr::filter(VAR == "NSSEC") %>% .$CODE,
+                         OCCUPATION_CODE = df_code_lookup %>% dplyr::filter(VAR == "OCCUPATION") %>% .$CODE,
+                         QUALS_CODE = df_code_lookup %>% dplyr::filter(VAR == "QUALS") %>% .$CODE,
+                         TENURE_CODE = df_code_lookup %>% dplyr::filter(VAR == "TENURE") %>% .$CODE) %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR == "NSSEC") %>% mutate(NSSEC_CODE = CODE, P_NSSEC = P, .keep = "none"), by = c("NSSEC_CODE")) %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR == "OCCUPATION") %>% mutate(OCCUPATION_CODE = CODE, P_OCCUPATION = P, .keep = "none"), by = c("OCCUPATION_CODE")) %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR == "QUALS") %>% mutate(QUALS_CODE = CODE, P_QUALS = P, .keep = "none"), by = c("QUALS_CODE")) %>%
+    left_join(df_code_lookup %>% dplyr::filter(VAR == "TENURE") %>% mutate(TENURE_CODE = CODE, P_TENURE = P, .keep = "none"), by = c("TENURE_CODE")) %>%
+    mutate(P_SEED = P_NSSEC * P_OCCUPATION * P_QUALS * P_TENURE)
+  
+  seed <- xtabs(
+    P_SEED ~ NSSEC_CODE + OCCUPATION_CODE + QUALS_CODE + TENURE_CODE,
+    data = df_seed
+  )
+  
+  return(seed)
+}
+
+fnD2_BalanceHighLevel <- function(msoa21cd, seed, b_detail = TRUE){
+  tgt_nssec_occupation_msoa <- df_nssec_occupation_msoa %>%
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    select(NSSEC_CODE, OCCUPATION_CODE, P) %>%
+    tidyr::pivot_wider(names_from = OCCUPATION_CODE, values_from = P) %>%
+    column_to_rownames(var = "NSSEC_CODE") %>%
+    as.matrix()
+  
+  tgt_nssec_quals_msoa <- df_nssec_quals_msoa %>%
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    select(NSSEC_CODE, QUALS_CODE, P) %>%
+    tidyr::pivot_wider(names_from = QUALS_CODE, values_from = P) %>%
+    column_to_rownames(var = "NSSEC_CODE") %>%
+    as.matrix()
+  
+  tgt_nssec_tenure_msoa <- df_nssec_tenure_msoa %>%
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    select(NSSEC_CODE, TENURE_CODE, P) %>%
+    tidyr::pivot_wider(names_from = TENURE_CODE, values_from = P) %>%
+    column_to_rownames(var = "NSSEC_CODE") %>%
+    as.matrix()
+  
+  tgt_occupation_quals_msoa <- df_occupation_quals_msoa %>%
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    select(OCCUPATION_CODE, QUALS_CODE, P) %>%
+    tidyr::pivot_wider(names_from = QUALS_CODE, values_from = P) %>%
+    column_to_rownames(var = "OCCUPATION_CODE") %>%
+    as.matrix()
+  
+  tgt_occupation_tenure_msoa <- df_occupation_tenure_msoa %>%
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    select(OCCUPATION_CODE, TENURE_CODE, P) %>%
+    tidyr::pivot_wider(names_from = TENURE_CODE, values_from = P) %>%
+    column_to_rownames(var = "OCCUPATION_CODE") %>%
+    as.matrix()
+  
+  tgt_quals_tenure_msoa <- df_quals_tenure_msoa %>% 
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    select(QUALS_CODE, TENURE_CODE, P) %>%
+    tidyr::pivot_wider(names_from = TENURE_CODE, values_from = P) %>%
+    column_to_rownames(var = "QUALS_CODE") %>%
+    as.matrix()
+
+  target_list <- list(
+    c(1, 2), # NS-SeC x Occupation
+    c(1, 3), # NS-SeC x Qualifications
+    c(1, 4), # NS-SeC x Tenure
+    c(2, 3), # Occupation x Qualifications
+    c(2, 4), # Occupation x Tenure
+    c(3, 4)  # Qualifications x Tenure
+  )
+  
+  target_data <- list(
+    tgt_nssec_occupation_msoa,
+    tgt_nssec_quals_msoa,
+    tgt_nssec_tenure_msoa,
+    tgt_occupation_quals_msoa,
+    tgt_occupation_tenure_msoa,
+    tgt_quals_tenure_msoa
+  )
+ 
+  # Run the ipf for the high level geography
+  ipf_high_level <- mipfp::Ipfp(
+    seed = seed,
+    target.list = target_list,
+    target.data = target_data,
+    print = FALSE,
+    iter = 10000,
+    tol = 1e-15,
+    tol.margins = 1e-10
+  )
+
+  # Calculate absolute errors
+  df_error <- df_nssec_occupation_msoa %>% 
+    dplyr::filter(AREA_CODE == msoa21cd) %>%
+    left_join(ipf_high_level$p.hat %>% 
+                as.data.frame() %>%
+                group_by(NSSEC_CODE, OCCUPATION_CODE) %>%
+                summarise(P_BALANCED = sum(Freq), .groups = "keep") %>%
+                ungroup() %>%
+                mutate(NSSEC_CODE = as.integer(as.character(NSSEC_CODE)),
+                       OCCUPATION_CODE = as.integer(as.character(OCCUPATION_CODE))),
+              by = c("NSSEC_CODE", "OCCUPATION_CODE")) %>%
+    mutate(DIFF = abs(P - P_BALANCED)) %>%
+    arrange(desc(DIFF)) %>%
+    slice_head(n = 1) %>%
+    mutate(VAR_A = "NSSEC", 
+           VAR_A_CODE = NSSEC_CODE,
+           VAR_A_DESC = NSSEC_DESC,
+           VAR_B = "OCCUPATION",
+           VAR_B_CODE = OCCUPATION_CODE,
+           VAR_B_DESC = OCCUPATION_DESC,
+           P_CONSTRAINT = P,
+           P_BALANCED = P_BALANCED,
+           ABS_DIFF = DIFF,
+           .keep = "none") %>%
+    bind_rows(df_nssec_quals_msoa %>% 
+                dplyr::filter(AREA_CODE == msoa21cd) %>%
+                left_join(ipf_high_level$p.hat %>% 
+                            as.data.frame() %>%
+                            group_by(NSSEC_CODE, QUALS_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq), .groups = "keep") %>%
+                            ungroup() %>%
+                            mutate(NSSEC_CODE = as.integer(as.character(NSSEC_CODE)),
+                                   QUALS_CODE = as.integer(as.character(QUALS_CODE))),
+                          by = c("NSSEC_CODE", "QUALS_CODE")) %>%
+                mutate(DIFF = abs(P - P_BALANCED)) %>%
+                arrange(desc(DIFF)) %>%
+                slice_head(n = 1) %>%
+                mutate(VAR_A = "NSSEC", 
+                       VAR_A_CODE = NSSEC_CODE,
+                       VAR_A_DESC = NSSEC_DESC,
+                       VAR_B = "QUALS",
+                       VAR_B_CODE = QUALS_CODE,
+                       VAR_B_DESC = QUALS_DESC,
+                       P_CONSTRAINT = P,
+                       P_BALANCED = P_BALANCED,
+                       ABS_DIFF = DIFF,
+                       .keep = "none")) %>%
+    bind_rows(df_nssec_tenure_msoa %>% 
+                dplyr::filter(AREA_CODE == msoa21cd) %>%
+                left_join(ipf_high_level$p.hat %>% 
+                            as.data.frame() %>%
+                            group_by(NSSEC_CODE, TENURE_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq), .groups = "keep") %>%
+                            ungroup() %>%
+                            mutate(NSSEC_CODE = as.integer(as.character(NSSEC_CODE)),
+                                   TENURE_CODE = as.integer(as.character(TENURE_CODE))),
+                          by = c("NSSEC_CODE", "TENURE_CODE")) %>%
+                mutate(DIFF = abs(P - P_BALANCED)) %>%
+                arrange(desc(DIFF)) %>%
+                slice_head(n = 1) %>%
+                mutate(VAR_A = "NSSEC", 
+                       VAR_A_CODE = NSSEC_CODE,
+                       VAR_A_DESC = NSSEC_DESC,
+                       VAR_B = "TENURE",
+                       VAR_B_CODE = TENURE_CODE,
+                       VAR_B_DESC = TENURE_DESC,
+                       P_CONSTRAINT = P,
+                       P_BALANCED = P_BALANCED,
+                       ABS_DIFF = DIFF,
+                       .keep = "none")) %>%
+    bind_rows(df_occupation_quals_msoa %>% 
+                dplyr::filter(AREA_CODE == msoa21cd) %>%
+                left_join(ipf_high_level$p.hat %>% 
+                            as.data.frame() %>%
+                            group_by(OCCUPATION_CODE, QUALS_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq), .groups = "keep") %>%
+                            ungroup() %>%
+                            mutate(OCCUPATION_CODE = as.integer(as.character(OCCUPATION_CODE)),
+                                   QUALS_CODE = as.integer(as.character(QUALS_CODE))),
+                          by = c("OCCUPATION_CODE", "QUALS_CODE")) %>%
+                mutate(DIFF = abs(P - P_BALANCED)) %>%
+                arrange(desc(DIFF)) %>%
+                slice_head(n = 1) %>%
+                mutate(VAR_A = "OCCUPATION",
+                       VAR_A_CODE = OCCUPATION_CODE,
+                       VAR_A_DESC = OCCUPATION_DESC,
+                       VAR_B = "QUALS", 
+                       VAR_B_CODE = QUALS_CODE,
+                       VAR_B_DESC = QUALS_DESC,
+                       P_CONSTRAINT = P,
+                       P_BALANCED = P_BALANCED,
+                       ABS_DIFF = DIFF,
+                       .keep = "none")) %>%
+    bind_rows(df_occupation_tenure_msoa %>% 
+                dplyr::filter(AREA_CODE == msoa21cd) %>%
+                left_join(ipf_high_level$p.hat %>% 
+                            as.data.frame() %>%
+                            group_by(OCCUPATION_CODE, TENURE_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq), .groups = "keep") %>%
+                            ungroup() %>%
+                            mutate(OCCUPATION_CODE = as.integer(as.character(OCCUPATION_CODE)),
+                                   TENURE_CODE = as.integer(as.character(TENURE_CODE))),
+                          by = c("OCCUPATION_CODE", "TENURE_CODE")) %>%
+                mutate(DIFF = abs(P - P_BALANCED)) %>%
+                arrange(desc(DIFF)) %>%
+                slice_head(n = 1) %>%
+                mutate(VAR_A = "OCCUPATION",
+                       VAR_A_CODE = OCCUPATION_CODE,
+                       VAR_A_DESC = OCCUPATION_DESC,
+                       VAR_B = "TENURE", 
+                       VAR_B_CODE = TENURE_CODE,
+                       VAR_B_DESC = TENURE_DESC,
+                       P_CONSTRAINT = P,
+                       P_BALANCED = P_BALANCED,
+                       ABS_DIFF = DIFF,
+                       .keep = "none")) %>%
+    bind_rows(df_quals_tenure_msoa %>% 
+                dplyr::filter(AREA_CODE == msoa21cd) %>%
+                left_join(ipf_high_level$p.hat %>% 
+                            as.data.frame() %>%
+                            group_by(QUALS_CODE, TENURE_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq), .groups = "keep") %>%
+                            ungroup() %>%
+                            mutate(QUALS_CODE = as.integer(as.character(QUALS_CODE)),
+                                   TENURE_CODE = as.integer(as.character(TENURE_CODE))),
+                          by = c("QUALS_CODE", "TENURE_CODE")) %>%
+                mutate(DIFF = abs(P - P_BALANCED)) %>%
+                arrange(desc(DIFF)) %>%
+                slice_head(n = 1) %>%
+                mutate(VAR_A = "QUALS",
+                       VAR_A_CODE = QUALS_CODE,
+                       VAR_A_DESC = QUALS_DESC,
+                       VAR_B = "TENURE", 
+                       VAR_B_CODE = TENURE_CODE,
+                       VAR_B_DESC = TENURE_DESC,
+                       P_CONSTRAINT = P,
+                       P_BALANCED = P_BALANCED,
+                       ABS_DIFF = DIFF,
+                       .keep = "none")) %>%
+    select(VAR_A, VAR_A_CODE, VAR_A_DESC,
+           VAR_B, VAR_B_CODE, VAR_B_DESC,
+           P_CONSTRAINT, P_BALANCED, ABS_DIFF) %>%
+    arrange(desc(ABS_DIFF))
+  
+  oa_list <- df_area_lu %>% dplyr::filter(MSOA21CD == msoa21cd) %>% distinct(OA21CD) %>% .$OA21CD
+  res <- lapply(oa_list, fnD2_BalanceLowLevel, ipf_high_level, b_detail)
+  
+  if(b_detail){
+    return_val <- list("hi" = list("ipf" = ipf_high_level, "error" = df_error, "target_data" = target_data, "target_list" = target_list), "lo" = res)
+  } else
+  {
+    return_val <- list("hi" = list("phat" = ipf_high_level$p.hat, "error" = df_error, "conv" = ipf_high_level$conv), "lo" = res)
+  }
+  return(return_val)  
+}
+
+
+fnD2_BalanceLowLevel <- function(oa21cd, ipf_high_level, b_detail = TRUE){
+  nssec <- df_nssec %>% dplyr::filter(AREA_CODE == oa21cd) %>% .$P
+  occupation <- df_occupation %>% dplyr::filter(AREA_CODE == oa21cd) %>% .$P
+  quals <- df_quals %>% dplyr::filter(AREA_CODE == oa21cd) %>% .$P
+  tenure <- df_tenure %>% dplyr::filter(AREA_CODE == oa21cd) %>% .$P
+  
+  target_data <- list(nssec, occupation, quals, tenure)
+  target_list <- list(1, 2, 3, 4)
+  
+  ipf_low_level <- mipfp::Ipfp(
+    seed = ipf_high_level$p.hat,
+    target.list = target_list,
+    target.data = target_data,
+    print = FALSE,
+    iter = 1000,
+    tol = 1e-10,
+    tol.margins = 1e-6
+  )
+
+  # Calculate absolute errors
+  df_error <- df_nssec %>% 
+    dplyr::filter(AREA_CODE==oa21cd) %>% 
+    left_join(ipf_low_level$p.hat %>%
+                as.data.frame() %>%
+                group_by(NSSEC_CODE) %>%
+                summarise(P_BALANCED = sum(Freq)) %>%
+                ungroup() %>%
+                mutate(NSSEC_CODE = as.integer(as.character(NSSEC_CODE))),
+              by = "NSSEC_CODE") %>%
+    mutate(ABS_DIFF = abs(P - P_BALANCED),
+           VAR = "NSSEC",
+           VAR_CODE = NSSEC_CODE,
+           VAR_DESC = NSSEC_DESC,
+           P_MARGINAL = P,
+           P_BALANCED) %>%
+    arrange(desc(ABS_DIFF)) %>%
+    slice_head(n = 1) %>%
+    select(VAR, VAR_CODE, VAR_DESC, P_MARGINAL, P_BALANCED, ABS_DIFF) %>%
+    bind_rows(df_occupation %>% 
+                dplyr::filter(AREA_CODE==oa21cd) %>% 
+                left_join(ipf_low_level$p.hat %>%
+                            as.data.frame() %>%
+                            group_by(OCCUPATION_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq)) %>%
+                            ungroup() %>%
+                            mutate(OCCUPATION_CODE = as.integer(as.character(OCCUPATION_CODE))),
+                          by = "OCCUPATION_CODE") %>%
+                mutate(ABS_DIFF = abs(P - P_BALANCED),
+                       VAR = "OCCUPATION",
+                       VAR_CODE = OCCUPATION_CODE,
+                       VAR_DESC = OCCUPATION_DESC,
+                       P_MARGINAL = P,
+                       P_BALANCED) %>%
+                arrange(desc(ABS_DIFF)) %>%
+                slice_head(n = 1) %>%
+                select(VAR, VAR_CODE, VAR_DESC, P_MARGINAL, P_BALANCED, ABS_DIFF)) %>%
+    bind_rows(df_quals %>% 
+                dplyr::filter(AREA_CODE==oa21cd) %>% 
+                left_join(ipf_low_level$p.hat %>%
+                            as.data.frame() %>%
+                            group_by(QUALS_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq)) %>%
+                            ungroup() %>%
+                            mutate(QUALS_CODE = as.integer(as.character(QUALS_CODE))),
+                          by = "QUALS_CODE") %>%
+                mutate(ABS_DIFF = abs(P - P_BALANCED),
+                       VAR = "QUALS",
+                       VAR_CODE = QUALS_CODE,
+                       VAR_DESC = QUALS_DESC,
+                       P_MARGINAL = P,
+                       P_BALANCED) %>%
+                arrange(desc(ABS_DIFF)) %>%
+                slice_head(n = 1) %>%
+                select(VAR, VAR_CODE, VAR_DESC, P_MARGINAL, P_BALANCED, ABS_DIFF)) %>%
+    bind_rows(df_tenure %>% 
+                dplyr::filter(AREA_CODE==oa21cd) %>% 
+                left_join(ipf_low_level$p.hat %>%
+                            as.data.frame() %>%
+                            group_by(TENURE_CODE) %>%
+                            summarise(P_BALANCED = sum(Freq)) %>%
+                            ungroup() %>%
+                            mutate(TENURE_CODE = as.integer(as.character(TENURE_CODE))),
+                          by = "TENURE_CODE") %>%
+                mutate(ABS_DIFF = abs(P - P_BALANCED),
+                       VAR = "TENURE",
+                       VAR_CODE = TENURE_CODE,
+                       VAR_DESC = TENURE_DESC,
+                       P_MARGINAL = P,
+                       P_BALANCED) %>%
+                arrange(desc(ABS_DIFF)) %>%
+                slice_head(n = 1) %>%
+                select(VAR, VAR_CODE, VAR_DESC, P_MARGINAL, P_BALANCED, ABS_DIFF)) %>%
+    arrange(desc(ABS_DIFF))
+  
+  if(b_detail){
+    return_val <- list("ipf" = ipf_low_level, "error" = df_error, "target_data" = target_data, "target_list" = target_list)
+  } else {
+    return_val <- list("phat" = ipf_low_level$p.hat, "error" = df_error, "conv" = ipf_low_level$conv)
+  }
+  return(return_val)  
+}
+
 
 # 1. Load Data ----
 # ════════════════════════════════════════════
@@ -358,22 +912,28 @@ df_main_lang_english_prof_rgn <- fnProcessConstraint(filename = "data/constraint
 df_main_lang_quals_rgn <- fnProcessConstraint(filename = "data/constraints/main_lang_11_quals_7_rgn.csv", vars = c("MAIN_LANG", "QUALS"))
 #    • proficiency in English x qualifications
 df_english_prof_quals_msoa <- fnProcessConstraint(filename = "data/constraints/english_prof_4_quals_7_msoa.csv", vars = c("QUALS", "ENGLISH_PROF")) %>% 
-  # Wrong order from census download (OCD kicking in)
+  # NB: Wrong order from census download
   select(AREA_CODE, AREA_DESC, ENGLISH_PROF_CODE, ENGLISH_PROF_DESC, QUALS_CODE, QUALS_DESC, OBS)
 
 # • • 1.2.2. Socioeconomic position ----
 #    • NS-SeC x occupation
-df_nssec_occupation_msoa <- fnProcessConstraint(filename = "data/constraints/nssec_10_occupation_10_msoa.csv", vars = c("NSSEC", "OCCUPATION"))
+df_nssec_occupation_msoa <- fnProcessConstraint(filename = "data/constraints/nssec_10_occupation_10_msoa.csv", vars = c("NSSEC", "OCCUPATION")) 
 #    • NS-SeC x qualifications
-df_nssec_quals_msoa <- fnProcessConstraint(filename = "data/constraints/nssec_10_quals_7_msoa.csv", vars = c("NSSEC", "TENURE"))
+df_nssec_quals_msoa <- fnProcessConstraint(filename = "data/constraints/nssec_10_quals_7_msoa.csv", vars = c("NSSEC", "QUALS"))
 #    • NS-SeC x tenure
-df_nnsec_tenure_msoa <- fnProcessConstraint(filename = "data/constraints/nssec_10_tenure_5_msoa.csv", vars = c("NSSEC", "QUALS"))
+df_nssec_tenure_msoa <- fnProcessConstraint(filename = "data/constraints/nssec_10_tenure_5_msoa.csv", vars = c("NSSEC", "TENURE"))
 #    • occupation x qualifications
-df_occupation_quals_msoa <- fnProcessConstraint(filename = "data/constraints/occupation_10_quals_7_msoa.csv", vars = c("OCCUPATION", "TENURE"))
+df_occupation_quals_msoa <- fnProcessConstraint(filename = "data/constraints/occupation_10_quals_7_msoa.csv", vars = c("QUALS", "OCCUPATION")) %>%
+  # NB: Wrong order from census download
+  select(AREA_CODE, AREA_DESC, OCCUPATION_CODE, OCCUPATION_DESC, QUALS_CODE, QUALS_DESC, OBS)
 #    • occupation x tenure (HHOLD)
-df_occupation_tenure_msoa <- fnProcessConstraint(filename = "data/constraints/occupation_10_tenure_5_msoa.csv", vars = c("OCCUPATION", "QUALS"))
+df_occupation_tenure_msoa <- fnProcessConstraint(filename = "data/constraints/occupation_10_tenure_5_msoa.csv", vars = c("TENURE", "OCCUPATION")) %>%
+  # NB: Wrong order from census download
+  select(AREA_CODE, AREA_DESC, OCCUPATION_CODE, OCCUPATION_DESC, TENURE_CODE, TENURE_DESC, OBS)
 #    • qualifications x tenure (HHOLD)
-df_quals_tenure_msoa <- fnProcessConstraint(filename = "data/constraints/quals_7_tenure_5_msoa.csv", vars = c("QUALS", "TENURE"))
+df_quals_tenure_msoa <- fnProcessConstraint(filename = "data/constraints/quals_7_tenure_5_msoa.csv", vars = c("TENURE", "QUALS")) %>% 
+  # NB: Wrong order from census download
+  select(AREA_CODE, AREA_DESC, QUALS_CODE, QUALS_DESC, TENURE_CODE, TENURE_DESC, OBS)
 
 # • • 1.2.3. Physical and practical access ----
 #    • age x car availability (HHOLD)
@@ -626,7 +1186,7 @@ df_english_prof_quals_msoa <- df_english_prof_quals_msoa %>%
 # df_area_lu %>% dplyr::filter(grepl("^E", OA21CD)) %>% distinct(RGN22CD) %>% NROW()
 # df_nssec_occupation_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
 # df_nssec_quals_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
-# df_nnsec_tenure_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
+# df_nssec_tenure_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
 # df_occupation_quals_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
 # df_occupation_tenure_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
 # df_quals_tenure_msoa %>% dplyr::filter(grepl("^E", AREA_CODE)) %>% distinct(AREA_CODE) %>% NROW()
@@ -635,7 +1195,7 @@ df_english_prof_quals_msoa <- df_english_prof_quals_msoa %>%
 # data suppression so only need to convert into proportions
 df_nssec_occupation_msoa <- df_nssec_occupation_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup()
 df_nssec_quals_msoa <- df_nssec_quals_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup()
-df_nnsec_tenure_msoa <- df_nnsec_tenure_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup()
+df_nssec_tenure_msoa <- df_nssec_tenure_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup()
 df_occupation_quals_msoa <- df_occupation_quals_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup()
 df_occupation_tenure_msoa <- df_occupation_tenure_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup()
 df_quals_tenure_msoa <- df_quals_tenure_msoa %>% group_by(AREA_CODE) %>% mutate(P = OBS/sum(OBS)) %>% ungroup()
@@ -950,122 +1510,78 @@ df_hhold_comp_hhold_type_msoa <- df_hhold_comp_hhold_type_msoa %>%
 
 # • 3.1 High Level Balancing (MSOA Level) ----
 
-df_seed <- expand_grid(AGE_CODE = df_code_lookup %>% dplyr::filter(VAR == "AGE") %>% .$CODE,
-                       MAIN_LANG_CODE = df_code_lookup %>% dplyr::filter(VAR == "MAIN_LANG") %>% .$CODE,
-                       ENGLISH_PROF_CODE = df_code_lookup %>% dplyr::filter(VAR == "ENGLISH_PROF") %>% .$CODE,
-                       QUALS_CODE = df_code_lookup %>% dplyr::filter(VAR == "QUALS") %>% .$CODE) %>%
-  left_join(df_code_lookup %>% dplyr::filter(VAR == "AGE") %>% mutate(AGE_CODE = CODE, P_AGE = P, .keep = "none"), by = c("AGE_CODE")) %>%
-  left_join(df_code_lookup %>% dplyr::filter(VAR == "MAIN_LANG") %>% mutate(MAIN_LANG_CODE = CODE, P_MAIN_LANG = P, .keep = "none"), by = c("MAIN_LANG_CODE")) %>%
-  left_join(df_code_lookup %>% dplyr::filter(VAR == "ENGLISH_PROF") %>% mutate(ENGLISH_PROF_CODE = CODE, P_ENGLISH_PROF = P, .keep = "none"), by = c("ENGLISH_PROF_CODE")) %>%
-  left_join(df_code_lookup %>% dplyr::filter(VAR == "QUALS") %>% mutate(QUALS_CODE = CODE, P_QUALS = P, .keep = "none"), by = c("QUALS_CODE")) %>%
-  mutate(P_SEED = P_AGE * P_MAIN_LANG * P_ENGLISH_PROF * P_QUALS)
-
-seed <- xtabs(
-  P_SEED ~ AGE_CODE + MAIN_LANG_CODE + ENGLISH_PROF_CODE + QUALS_CODE,
-  data = df_seed
-)
-
-fnProcessDomain1 <- function(){
-  # Domain One: Communication
-  # • age
-  # • main language
-  # • proficiency in English
-  # • qualifications
+# Domain One: Communication
+# • 1. age
+# • 2. main language
+# • 3. proficiency in English
+# • 4. qualifications
+# TEST ----  
+# Create high level geography seed
+seed <- fnD1_CreateSeed()
   
-  # Create high level geography seed
-  seed <- fnD1_CreateSeed()
-  
-  # Balance high level geography
-  msoa_list <- df_area_lu %>% dplyr::filter(grepl("^E", MSOA21CD)) %>% distinct(MSOA21CD) %>% .$MSOA21CD
-  res <- do.call("rbind", lapply(msoa_list, fnD1_BalanceHighLevel, seed))
-  
-  fnD1_BalanceHighLevel(msoa_list[1], seed)
-  # Process low level geography
-  oa_list <- 
-}
+# Balance high level geography
+msoa_list <- df_area_lu %>% 
+  dplyr::filter(grepl("^E", MSOA21CD)) %>% distinct(MSOA21CD) %>% .$MSOA21CD
 
 
+msoa21cd <- msoa_list[1]
+seed <- fnD2_CreateSeed()
+res <- fnD2_BalanceHighLevel(msoa21cd, seed)
+str(res, max.level = 1)
 
-# Create target matrices for the constraints
+# Cornwall and Isles of Scilly ICB
+# ────────────────────────────────
+# msoa_list <- df_area_lu %>% 
+#   dplyr::filter(LAD22NM %in% c("Cornwall","Isles of Scilly")) %>% 
+#   distinct(MSOA21CD) %>% 
+#   .$MSOA21CD
+# 
+# Devon ICB
+# ─────────
+# msoa_list <- df_area_lu %>% 
+#   filter(LAD22NM %in% c("Plymouth", "Exeter", "Torbay",
+#                         "East Devon", "West Devon", "Mid Devon", "North Devon",
+#                         "Torridge", "Teignbridge", "South Hams")) %>% 
+#   distinct(MSOA21CD) %>% 
+#   .$MSOA21CD
+#
+# Somerset ICB
+# ────────────
+# msoa_list <- df_area_lu %>% 
+#   filter(LAD22NM %in% c("Somerset West and Taunton", "Mendip",
+#                         "South Somerset", "Sedgemoor")) %>% 
+#   distinct(MSOA21CD) %>% 
+#   .$MSOA21CD
 
-area <- "E02004152"
-fnD1_BalanceHighLevel(area)
+msoa_list <- df_area_lu %>%
+  filter(LAD22NM %in% c("Plymouth", "Exeter", "Torbay",
+                        "East Devon", "West Devon", "Mid Devon", "North Devon",
+                        "Torridge", "Teignbridge", "South Hams")) %>%
+  distinct(MSOA21CD) %>%
+  .$MSOA21CD
 
+var_list <- c("df_age_main_lang_msoa", "df_age_english_prof_msoa",
+              "df_age_quals_msoa", "df_main_lang_english_prof_msoa",
+              "df_main_lang_quals_msoa", "df_english_prof_quals_msoa",
+              "df_age", "df_main_lang", "df_english_prof", "df_quals",
+              "df_area_lu",
+              "fnD1_CreateSeed", "fnD1_BalanceHighLevel", "fnD1_BalanceLowLevel")
 
-oa_list <- df_area_lu %>% dplyr::filter(MSOA21CD == area) %>% .$OA21CD
+# About 3 minutes to set up
+dt_start <- Sys.time()
+n_cores <- parallel::detectCores()
+cl <- parallel::makeCluster(n_cores - 1)
+parallel::clusterEvalQ(cl, {library(tidyverse)})
+parallel::clusterExport(cl, varlist = var_list)
+Sys.time() - dt_start
 
+dt_start <- Sys.time()
+res <- pblapply(X = msoa_list, FUN = fnD1_BalanceHighLevel, seed, cl = cl)
+names(res) <- msoa_list
+parallel::stopCluster(cl)
+Sys.time() - dt_start
 
-age
-  
-ipf$p.hat %>% 
-  as.data.frame() %>% 
-  mutate(AREA_CODE = oa_list[1], P = Freq) %>%
-  select(AREA_CODE, AGE_CODE, MAIN_LANG_CODE, ENGLISH_PROF_CODE, QUALS_CODE, P) %>%
-  left_join(df_popn, by = "AREA_CODE") %>%
-  mutate(OBS = P * OBS) %>%
-  left_join(df_code_lookup %>% dplyr::filter(VAR=="AGE") %>% mutate(AGE_CODE = as.factor(CODE), AGE_DESC = DESC, .keep = "none"), by = "AGE_CODE") %>%
-  left_join(df_code_lookup %>% dplyr::filter(VAR=="MAIN_LANG") %>% mutate(MAIN_LANG_CODE = as.factor(CODE), MAIN_LANG_DESC = DESC, .keep = "none"), by = "MAIN_LANG_CODE") %>%
-  left_join(df_code_lookup %>% dplyr::filter(VAR=="ENGLISH_PROF") %>% mutate(ENGLISH_PROF_CODE = as.factor(CODE), ENGLISH_PROF_DESC = DESC, .keep = "none"), by = "ENGLISH_PROF_CODE") %>%
-  left_join(df_code_lookup %>% dplyr::filter(VAR=="QUALS") %>% mutate(QUALS_CODE = as.factor(CODE), QUALS_DESC = DESC, .keep = "none"), by = "QUALS_CODE") %>%
-  select(AREA_CODE, AGE_CODE, AGE_DESC, MAIN_LANG_CODE, MAIN_LANG_DESC, ENGLISH_PROF_CODE, ENGLISH_PROF_DESC, QUALS_CODE, QUALS_DESC, OBS, P) %>% 
-  write.csv("temp.csv")
+str(res, max.level = 1)
 
+save(list = c('res'), file = "devon_icb_results.RObj")
 
-
-  df <- ipf$p.hat %>% 
-    as.data.frame() %>% 
-    mutate(AREA = area, AGE, GENDER, HEALTH, P = Freq, .keep = "none") %>%
-    select(AREA, AGE, GENDER, HEALTH, P)
-  
-  return(df)
-}
-
-
-
-target_age_gender <- df_age_gender %>%
-  select(AGE, GENDER, PCT) %>%
-  tidyr::pivot_wider(
-    names_from = GENDER,
-    values_from = PCT
-  ) %>%
-  tibble::column_to_rownames("AGE") %>%
-  as.matrix()
-
-
-mutate(P_AGE = df_code_lookup$P[df_code_lookup$VAR=="AGE" & df_code_lookup$CODE==AGE_CODE])
-
-
-
-
-
-df_code_lookup$P[df_code_lookup$VAR=="AGE" & df_code_lookup$CODE==AGE_CODE]
-
-
-
-# Communication
-df_age_english_prof_msoa
-df_age_quals_msoa
-df_age_main_lang_msoa
-df_main_lang_english_prof_msoa
-df_main_lang_quals_msoa
-df_english_prof_quals_msoa
-
-df_age_english_prof_msoa %>% 
-  select(AREA_CODE, AGE_DESC, ENGLISH_PROF_DESC, P)
-
-
-#    • age
-#    • main language
-#    • proficiency in English
-#    • qualifications
-
-expand_grid(
-  
-)
-
-expand_grid(
-  df_age_english_prof_msoa[df_age_english_prof_msoa$AREA_CODE=="E02000001", c("AREA_CODE", "AGE_DESC", "ENGLISH_PROF_DESC", "P")],
-  df_age_quals_msoa[df_age_quals_msoa$AREA_CODE=="E02000001", c("AREA_CODE", "AGE_DESC", "QUALS_DESC", "P")])
-
-%>%
-  expand_()
