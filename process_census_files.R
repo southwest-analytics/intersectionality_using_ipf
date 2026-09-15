@@ -254,28 +254,34 @@ fnDm_LoLvl_Balance <- function(seed, target_data, target_list, verbose = FALSE){
   return(ipf_low_level)
 }
 
-fnDm_Process <- function(area, var_names, df_constraints, df_marginals, verbose = FALSE, detail = FALSE, cluster){
+fnDm_Process <- function(area, var_names, df_constraints, df_marginals, verbose = FALSE, detail = FALSE){
   seed <- fnDm_HiLvl_CreateSeed(var_names)
   target_data <- lapply(df_constraints, fnDm_HiLvl_CreateTargetData, var_names, area)
   target_list <- lapply(df_constraints, fnDm_HiLvl_CreateTargetList, var_names, area)
   ipf <- fnDm_HiLvl_Balance(seed, target_data, target_list, verbose)
-  df_MAE <- do.call("rbind", lapply(df_constraints, fnDm_HiLvl_CalculateError, ipf, area, var_names)) %>% 
-    arrange(desc(ABS_DIFF))
+#  df_MAE <- do.call("rbind", lapply(df_constraints, fnDm_HiLvl_CalculateError, ipf, area, var_names)) %>% arrange(desc(ABS_DIFF))
 
   oa_list <- df_area_lu %>% dplyr::filter(MSOA21CD==area) %>% distinct(OA21CD) %>% .$OA21CD
 
-  lo <- pblapply(oa_list, fnDm_ProcessLoLvl, var_names, df_marginals, seed = ipf$p.hat, verbose, detail, cl = cluster)
+  lo <- pblapply(oa_list, fnDm_ProcessLoLvl, var_names, df_marginals, seed = ipf$p.hat, verbose, detail)
   names(lo) <- oa_list
   
+  # if(detail){
+  #   ret_val <- list("hi" = list("ipf" = ipf, "MAE" = df_MAE, "conv" = ipf$conv,
+  #                               "target_data" = target_data, "target_list" = target_list), 
+  #                   "lo" = lo)
+  # } else {
+  #   ret_val <- list("hi" = list("ipf_phat" = ipf$p.hat, "MAE" = df_MAE, "conv" = ipf$conv),
+  #                   "lo" = lo)
+  # }
+  
   if(detail){
-    ret_val <- list("hi" = list("ipf" = ipf, "MAE" = df_MAE, "conv" = ipf$conv,
-                                "target_data" = target_data, "target_list" = target_list), 
+    ret_val <- list("hi" = list("ipf" = ipf, "conv" = ipf$conv,
+                                "target_data" = target_data, "target_list" = target_list),
                     "lo" = lo)
-    names(ret_val) <- area
   } else {
-    ret_val <- list("hi" = list("ipf_phat" = ipf$p.hat, "MAE" = df_MAE, "conv" = ipf$conv),
+    ret_val <- list("hi" = list("ipf_phat" = ipf$p.hat, "conv" = ipf$conv),
                     "lo" = lo)
-    names(ret_val) <- area
   }
   return(ret_val)
 }
@@ -286,9 +292,9 @@ fnDm_ProcessLoLvl <- function(area, var_names, df_marginals, seed, verbose = FAL
   ipf <- fnDm_LoLvl_Balance(seed, target_data, target_list)
   
   if(detail){
-    ret_val = list(area = list("ipf" = ipf, "target_data" = target_data, "target_list" = target_list))
+    ret_val <- list(area = list("ipf" = ipf, "target_data" = target_data, "target_list" = target_list))
   } else {
-    ret_val = list(area = list("phat" = ipf$p.hat %>% as.data.frame()))
+    ret_val <- list(area = list("phat" = ipf$p.hat %>% as.data.frame()))
   }
     
   return(ret_val)
@@ -1160,17 +1166,16 @@ export_list <- c(# Constraints
   "df_religion", "df_resid_length", "df_sex", 
   "df_econ_act", "df_hhold_type", "df_unpaid_care",
   # Other
-  "df_area_lu",
+  "df_area_lu", "df_code_lookup",
   # Functions
+  "pblapply",
   ls()[grepl("^fnDm_", ls())])
 
-dt_start <- Sys.time()
 n_cores <- parallel::detectCores() - 1
 cl <- parallel::makeCluster(n_cores)
 parallel::clusterEvalQ(cl, {library(tidyverse)})
 # NB: This takes 10 minutes to load
 parallel::clusterExport(cl, varlist = export_list)
-Sys.time() - dt_start
 
 # • 3.1 High Level Balancing (MSOA Level) ----
 
@@ -1186,6 +1191,8 @@ df_constraints <- list(df_age_main_lang_msoa, df_age_english_prof_msoa, df_age_q
                        df_main_lang_english_prof_msoa, df_main_lang_quals_msoa, df_english_prof_quals_msoa)
 df_marginals <- list(df_age, df_main_lang, df_english_prof, df_quals)
 
-res <- lapply(msoa_list, fnDm_Process, var_names, df_constraints, df_marginals, verbose = FALSE, detail = FALSE, cluster = cl)
+res <- pblapply(msoa_list, fnDm_Process, var_names, df_constraints, df_marginals, verbose = FALSE, detail = FALSE, cl = cl)
+names(res) <- msoa_list
 parallel::stopCluster(cl)
 
+save(list = "res", file = "output.RObj")
