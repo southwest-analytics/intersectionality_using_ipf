@@ -100,7 +100,9 @@ library(tidyverse)
 library(mipfp)
 library(pbapply)
 library(parallel)
+library(profvis)
 library(conflicted)
+
 
 fnProcessMarginal <- function(filename, var){
   df <- read.csv(filename)
@@ -183,14 +185,13 @@ fnDm_HiLvl_CreateTargetList <- function(df, var_names, area){
 
 fnDm_HiLvl_Balance <- function(seed, target_data, target_list, verbose = FALSE){
   # Run the ipf for the high level geography
-  browser()
   ipf_high_level <- mipfp::Ipfp(
     seed = seed,
     target.list = target_list,
     target.data = target_data,
     print = verbose,
-    iter = 10000,
-    tol = 1e-15,
+    iter = 1000,
+    tol = 1e-10,
     tol.margins = 1e-10
   )
   return(ipf_high_level)
@@ -253,7 +254,7 @@ fnDm_LoLvl_Balance <- function(seed, target_data, target_list, verbose = FALSE){
   return(ipf_low_level)
 }
 
-fnDm_Process <- function(area, var_names, df_constraints, verbose = FALSE, detail = FALSE, cluster){
+fnDm_Process <- function(area, var_names, df_constraints, df_marginals, verbose = FALSE, detail = FALSE, cluster){
   seed <- fnDm_HiLvl_CreateSeed(var_names)
   target_data <- lapply(df_constraints, fnDm_HiLvl_CreateTargetData, var_names, area)
   target_list <- lapply(df_constraints, fnDm_HiLvl_CreateTargetList, var_names, area)
@@ -1163,11 +1164,13 @@ export_list <- c(# Constraints
   # Functions
   ls()[grepl("^fnDm_", ls())])
 
+dt_start <- Sys.time()
 n_cores <- parallel::detectCores() - 1
 cl <- parallel::makeCluster(n_cores)
 parallel::clusterEvalQ(cl, {library(tidyverse)})
 # NB: This takes 10 minutes to load
 parallel::clusterExport(cl, varlist = export_list)
+Sys.time() - dt_start
 
 # • 3.1 High Level Balancing (MSOA Level) ----
 
@@ -1177,18 +1180,12 @@ parallel::clusterExport(cl, varlist = export_list)
 # • 3. proficiency in English
 # • 4. qualifications
 
-msoa_list <- df_area_lu %>% dplyr::filter(grepl("^E", MSOA21CD)) %>% distinct(MSOA21CD) %>% .$MSOA21CD
+msoa_list <- df_area_lu %>% dplyr::filter(grepl("^E", MSOA21CD) & LAD22NM=="Exeter") %>% distinct(MSOA21CD) %>% .$MSOA21CD
 var_names <- c("AGE", "MAIN_LANG", "ENGLISH_PROF", "QUALS")
 df_constraints <- list(df_age_main_lang_msoa, df_age_english_prof_msoa, df_age_quals_msoa,
                        df_main_lang_english_prof_msoa, df_main_lang_quals_msoa, df_english_prof_quals_msoa)
 df_marginals <- list(df_age, df_main_lang, df_english_prof, df_quals)
 
-dt_start <- Sys.time()
-res <- lapply(msoa_list[1:2], fnDm_Process, var_names, df_constraints, df_marginals, verbose = FALSE, detail = FALSE, cluster = cl)
-Sys.time() - dt_start
-
-fnDm_Process(msoa_list[1], var_names, df_constraints, df_marginals, cluster = cl)
-
-
+res <- lapply(msoa_list, fnDm_Process, var_names, df_constraints, df_marginals, verbose = FALSE, detail = FALSE, cluster = cl)
 parallel::stopCluster(cl)
 
