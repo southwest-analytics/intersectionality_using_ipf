@@ -1109,61 +1109,27 @@ df_hhold_comp_hhold_type_msoa <- df_hhold_comp_hhold_type_msoa %>%
 
 # • 3.0. Prepare parallel processing ----
 
-constraints <- list(
-  df_age_english_prof_msoa = df_age_english_prof_msoa, df_age_main_lang_msoa = df_age_main_lang_msoa, 
-  df_age_quals_msoa = df_age_quals_msoa, df_english_prof_quals_msoa = df_english_prof_quals_msoa, 
-  df_main_lang_english_prof_msoa = df_main_lang_english_prof_msoa, df_main_lang_quals_msoa = df_main_lang_quals_msoa, 
-  df_nssec_occupation_msoa = df_nssec_occupation_msoa, df_nssec_quals_msoa = df_nssec_quals_msoa, 
-  df_nssec_tenure_msoa = df_nssec_tenure_msoa, df_occupation_quals_msoa = df_occupation_quals_msoa, 
-  df_occupation_tenure_msoa = df_occupation_tenure_msoa, df_quals_tenure_msoa = df_quals_tenure_msoa, 
-  df_age_car_avail_msoa = df_age_car_avail_msoa, df_age_disability_msoa = df_age_disability_msoa, 
-  df_age_health_msoa = df_age_health_msoa, df_car_avail_disability_msoa = df_car_avail_disability_msoa, 
-  df_car_avail_health_msoa = df_car_avail_health_msoa, df_disability_health_msoa = df_disability_health_msoa, 
-  df_car_avail_ethnicity_msoa = df_car_avail_ethnicity_msoa, df_car_avail_hhold_comp_msoa = df_car_avail_hhold_comp_msoa, 
-  df_car_avail_religion_msoa = df_car_avail_religion_msoa, df_car_avail_resid_length_msoa = df_car_avail_resid_length_msoa, 
-  df_ethnicity_hhold_comp_msoa = df_ethnicity_hhold_comp_msoa, df_ethnicity_religion_msoa = df_ethnicity_religion_msoa, 
-  df_ethnicity_resid_length_msoa = df_ethnicity_resid_length_msoa, df_hhold_comp_religion_msoa = df_hhold_comp_religion_msoa, 
-  df_hhold_comp_resid_length_msoa = df_hhold_comp_resid_length_msoa, df_resid_length_religion_msoa = df_resid_length_religion_msoa, 
-  df_age_ethnicity_msoa = df_age_ethnicity_msoa, df_age_sex_msoa = df_age_sex_msoa, 
-  df_disability_ethnicity_msoa = df_disability_ethnicity_msoa, df_disability_sex_msoa = df_disability_sex_msoa, 
-  df_ethnicity_health_msoa = df_ethnicity_health_msoa, df_ethnicity_sex_msoa = df_ethnicity_sex_msoa, 
-  df_health_sex_msoa = df_health_sex_msoa, df_econ_act_hhold_comp_msoa = df_econ_act_hhold_comp_msoa, 
-  df_econ_act_hhold_type_msoa = df_econ_act_hhold_type_msoa, df_econ_act_unpaid_care_msoa = df_econ_act_unpaid_care_msoa, 
-  df_hhold_comp_hhold_type_msoa = df_hhold_comp_hhold_type_msoa, df_hhold_comp_unpaid_care_msoa = df_hhold_comp_unpaid_care_msoa, 
-  df_hhold_type_unpaid_care_msoa = df_hhold_type_unpaid_care_msoa
-)
-
-marginals <- list(df_age = df_age, df_english_prof = df_english_prof, 
-                  df_main_lang = df_main_lang, df_quals = df_quals, 
-                  df_nssec = df_nssec, df_occupation = df_occupation, 
-                  df_tenure = df_tenure, df_car_avail = df_car_avail, 
-                  df_disability = df_disability, df_health = df_health, 
-                  df_ethnicity = df_ethnicity, df_hhold_comp = df_hhold_comp, 
-                  df_religion = df_religion, df_resid_length = df_resid_length, 
-                  df_sex = df_sex, df_econ_act = df_econ_act, 
-                  df_hhold_type = df_hhold_type, df_unpaid_care = df_unpaid_care)
-
 export_list <- c(# Constraints
-  "df_age_english_prof_msoa", "df_age_main_lang_msoa", "df_age_quals_msoa", 
-  "df_english_prof_quals_msoa", "df_main_lang_english_prof_msoa", "df_main_lang_quals_msoa", 
-  "df_nssec_occupation_msoa", "df_nssec_quals_msoa", "df_nssec_tenure_msoa", 
-  "df_occupation_quals_msoa", "df_occupation_tenure_msoa", "df_quals_tenure_msoa", 
-  "df_age_car_avail_msoa", "df_age_disability_msoa", "df_age_health_msoa", 
-  "df_car_avail_disability_msoa", "df_car_avail_health_msoa", "df_disability_health_msoa", 
-  "df_car_avail_ethnicity_msoa", "df_car_avail_hhold_comp_msoa", "df_car_avail_religion_msoa", 
-  "df_car_avail_resid_length_msoa", "df_ethnicity_hhold_comp_msoa", "df_ethnicity_religion_msoa", 
-  "df_ethnicity_resid_length_msoa", "df_hhold_comp_religion_msoa", "df_hhold_comp_resid_length_msoa", 
-  "df_resid_length_religion_msoa", "df_age_ethnicity_msoa", "df_age_sex_msoa", 
-  "df_disability_ethnicity_msoa", "df_disability_sex_msoa", "df_ethnicity_health_msoa", 
-  "df_ethnicity_sex_msoa", "df_health_sex_msoa", "df_econ_act_hhold_comp_msoa", 
-  "df_econ_act_hhold_type_msoa", "df_econ_act_unpaid_care_msoa", "df_hhold_comp_hhold_type_msoa", 
-  "df_hhold_comp_unpaid_care_msoa", "df_hhold_type_unpaid_care_msoa", 
+  "df_age_english_prof_msoa", "df_age_main_lang_msoa", "df_age_quals_msoa",
+  "df_english_prof_quals_msoa", "df_main_lang_english_prof_msoa", "df_main_lang_quals_msoa",
+  "df_nssec_occupation_msoa", "df_nssec_quals_msoa", "df_nssec_tenure_msoa",
+  "df_occupation_quals_msoa", "df_occupation_tenure_msoa", "df_quals_tenure_msoa",
+  "df_age_car_avail_msoa", "df_age_disability_msoa", "df_age_health_msoa",
+  "df_car_avail_disability_msoa", "df_car_avail_health_msoa", "df_disability_health_msoa",
+  "df_car_avail_ethnicity_msoa", "df_car_avail_hhold_comp_msoa", "df_car_avail_religion_msoa",
+  "df_car_avail_resid_length_msoa", "df_ethnicity_hhold_comp_msoa", "df_ethnicity_religion_msoa",
+  "df_ethnicity_resid_length_msoa", "df_hhold_comp_religion_msoa", "df_hhold_comp_resid_length_msoa",
+  "df_resid_length_religion_msoa", "df_age_ethnicity_msoa", "df_age_sex_msoa",
+  "df_disability_ethnicity_msoa", "df_disability_sex_msoa", "df_ethnicity_health_msoa",
+  "df_ethnicity_sex_msoa", "df_health_sex_msoa", "df_econ_act_hhold_comp_msoa",
+  "df_econ_act_hhold_type_msoa", "df_econ_act_unpaid_care_msoa", "df_hhold_comp_hhold_type_msoa",
+  "df_hhold_comp_unpaid_care_msoa", "df_hhold_type_unpaid_care_msoa",
   # Marginals
-  "df_age", "df_english_prof", "df_main_lang", 
-  "df_quals", "df_nssec", "df_occupation", 
-  "df_tenure", "df_car_avail", "df_disability", 
-  "df_health", "df_ethnicity", "df_hhold_comp", 
-  "df_religion", "df_resid_length", "df_sex", 
+  "df_age", "df_english_prof", "df_main_lang",
+  "df_quals", "df_nssec", "df_occupation",
+  "df_tenure", "df_car_avail", "df_disability",
+  "df_health", "df_ethnicity", "df_hhold_comp",
+  "df_religion", "df_resid_length", "df_sex",
   "df_econ_act", "df_hhold_type", "df_unpaid_care",
   # Other
   "df_area_lu", "df_code_lookup",
@@ -1171,11 +1137,24 @@ export_list <- c(# Constraints
   "pblapply",
   ls()[grepl("^fnDm_", ls())])
 
+
+export_list <- c(# Constraints
+  "df_age_english_prof_msoa", "df_age_main_lang_msoa", "df_age_quals_msoa", 
+  "df_english_prof_quals_msoa", "df_main_lang_english_prof_msoa", "df_main_lang_quals_msoa",
+   # Marginals
+   "df_age", "df_english_prof", "df_main_lang", "df_quals", 
+   # Other
+   "df_area_lu", "df_code_lookup",
+   # Functions  
+   "pblapply",
+   ls()[grepl("^fnDm_", ls())])
+
+df_start <- Sys.time()
 n_cores <- parallel::detectCores() - 1
 cl <- parallel::makeCluster(n_cores)
 parallel::clusterEvalQ(cl, {library(tidyverse)})
-# NB: This takes 10 minutes to load
 parallel::clusterExport(cl, varlist = export_list)
+Sys.time() - df_start
 
 # • 3.1 High Level Balancing (MSOA Level) ----
 
@@ -1191,8 +1170,70 @@ df_constraints <- list(df_age_main_lang_msoa, df_age_english_prof_msoa, df_age_q
                        df_main_lang_english_prof_msoa, df_main_lang_quals_msoa, df_english_prof_quals_msoa)
 df_marginals <- list(df_age, df_main_lang, df_english_prof, df_quals)
 
-res <- pblapply(msoa_list, fnDm_Process, var_names, df_constraints, df_marginals, verbose = FALSE, detail = FALSE, cl = cl)
+profvis({res <- pblapply(msoa_list[1:2], fnDm_Process, var_names, df_constraints, df_marginals, verbose = FALSE, detail = FALSE, cl = NULL)})
+
 names(res) <- msoa_list
 parallel::stopCluster(cl)
+Sys.time() - df_start
 
 save(list = "res", file = "output.RObj")
+load(file = "output.RObj")
+
+str(res, max.level = 1)
+# One MSOA
+str(res$E02004155, max.level = 1)
+# Hi level
+str(res$E02004155$hi, max.level = 1)
+# Hi level - phat
+res$E02004155$hi$ipf_phat
+
+# Lo level
+str(res$E02004155$lo, max.level = 1)
+# One OA
+str(res$E02004155$lo$E00101177)
+
+res$E02004155
+# Hi level - phat
+
+
+fnGetHiLevel <- function(hi_level){
+  res[[hi_level]]$hi$ipf_phat %>% 
+    as.data.frame() %>% 
+    mutate(MSOA21CD = hi_level, OA21CD = NA, .before = 1)  
+}
+
+fnGetLoLevel <- function(lo_level, hi_level){
+  res[[hi_level]]$lo[[lo_level]]$area$phat %>% 
+    as.data.frame() %>% 
+    mutate(MSOA21CD = hi_level, OA21CD = lo_level, .before = 1)  
+}
+
+hi_levels <- names(res) 
+hi_levels[10]
+lo_levels <- names(res[[hi_levels[10]]]$lo)
+
+df_ret <- do.call("rbind", 
+                  lapply(names(res), 
+                         function(x){
+                           hi_level <- x
+                           df_hi <- fnGetHiLevel(hi_level)
+                           df_lo <- do.call("rbind", 
+                                            lapply(names(res[[hi_level]]$lo), 
+                                                   function(x){
+                                                     fnGetLoLevel(lo_level = x, hi_level = hi_level)
+                                                   }))
+                           df_ret <- df_hi %>% bind_rows(df_lo)
+                         }))
+write.csv(df_ret, "output.csv")
+
+hi_level <- hi_levels[10]
+
+df_lo <- do.call("rbind", 
+                 lapply(names(res[[hi_level]]), 
+                        function(){
+                          fnGetLoLevel(lo_level = lo_levels[1], hi_level = hi_level)
+                        }))
+
+
+
+
